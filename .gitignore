@@ -1,0 +1,8 @@
+build
+play.psd
+*__pycache__
+setup.py
+.directory
+.vscode
+Thumbs.db
+.idea
