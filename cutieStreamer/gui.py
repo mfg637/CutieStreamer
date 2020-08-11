@@ -19,8 +19,7 @@ import gui
 import converter
 
 
-support_sound_files_extensions = ("*.wav *.mp3 *.m4a *.flac *.ogg *.opus"
-								"*.ape *.tak *.tta *wv *mka")
+support_sound_files_extensions = "*.wav *.mp3 *.m4a *.flac *.ogg *.opus *.ape *.tak *.tta *wv *mka"
 
 
 class GUI:
@@ -463,16 +462,26 @@ class GUI:
 		self._root.destroy()
 
 	def __save_playlist(self):
+		import pathlib
 		if self._playing_timer is not None:
 			self._root.after_cancel(self._playing_timer)
-		filename=filedialog.asksaveasfilename(title = "save playlist",
-			filetypes = (("playlist", "*.cspl"),("json","*.cutieStreamer.json")),
-			defaultextension=".cspl")
+		filename = filedialog.asksaveasfilename(
+			title="save playlist",
+			filetypes=(
+				("playlist", "*.cspl"),
+				("json","*.cutieStreamer.json"),
+				("m3u extended playlist format", "*.m3u8")
+			),
+			defaultextension=".cspl"
+		)
 		if filename:
-			if filename[-5:]==".cspl":
+			filename = pathlib.Path(filename)
+			if filename.suffix.lower() == ".cspl":
 				playlist.serizlize_playlist_file(filename, self._playlist, self)
-			else:
+			elif filename.suffix.lower() == ".json":
 				self._playlist.serialize(filename)
+			elif filename.suffix.lower() == ".m3u8":
+				self._playlist.save_m3u8(filename)
 		if self._playlist is not None and self._playlist.isPlaying():
 			self._playing_update()
 

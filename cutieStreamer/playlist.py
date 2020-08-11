@@ -267,6 +267,17 @@ class Playlist():
 		else:
 			return json.dumps(serialisableData)
 
+	def save_m3u8(self, filename):
+		dirname=os.path.dirname(filename)
+		if filename is not None:
+			fp=open(filename, 'w')
+			fp.write('#EXTM3U\n')
+			for tag in self.tags:
+				fp.write("#EXTINF:{},{} - {}\n".format(int(tag.duration()), tag.artist(), tag.title()))
+				fp.write(os.path.relpath(tag.filename(), start=dirname))
+				fp.write('\n')
+			fp.close()
+
 	def getAlbum(self, album_artist, album):
 		new_tags=[]
 		for tag in self.tags:
