@@ -5,6 +5,7 @@
 import subprocess
 from platform import system
 from abc import ABCMeta, abstractmethod
+from .playlist import GainModeEnum
 
 if system() == 'Windows':
 	status_info = subprocess.STARTUPINFO()
@@ -33,7 +34,7 @@ class Streamer:
 
 
 class FFmpeg(Streamer):
-	def __init__(self, file, samplerate, *, offset=None, duration=None):
+	def __init__(self, file, samplerate, gain, *, offset=None, duration=None):
 		global status_info
 		self._open = True
 		commandline = ['ffmpeg']
@@ -46,7 +47,14 @@ class FFmpeg(Streamer):
 				commandline += ['-t', str(duration-offset)]
 		commandline += [
 			'-i', file,
-			'-vn',
+			'-vn']
+		if gain != GainModeEnum.NONE:
+			commandline += ["-af"]
+			if gain == GainModeEnum.REPLAY_GAIN:
+				commandline += ["volume=replaygain=album"]
+			else:
+				commandline += ["volume={}".format(gain)]
+		commandline += [
 			'-acodec', 'pcm_f32le',
 			'-ac', '2',
 			'-ar', str(samplerate),
@@ -65,10 +73,13 @@ class FFmpeg(Streamer):
 
 
 class OpusDecoder(Streamer):
-	def __init__(self, file, samplerate, *, offset=None):
+	def __init__(self, file, samplerate, gain, *, offset=None):
 		global status_info
 		self._open = True
-		commandline = ['opusdec', '--float', '--rate', str(samplerate), file, '-']
+		commandline = ['opusdec', '--float', '--rate', str(samplerate)]
+		if gain == GainModeEnum.REPLAY_GAIN:
+			commandline += ["--gain", "5 dB"]
+		commandline += [file, '-']
 		if system() == 'Windows':
 			try:
 				self._streamer = subprocess.Popen(

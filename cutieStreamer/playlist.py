@@ -9,6 +9,7 @@ import subprocess
 import sys
 import zlib
 from platform import system
+import enum
 
 from PIL import Image
 
@@ -23,6 +24,16 @@ if system() == 'Windows':
 class EndOfPlaylistException(Exception):
 	def __init__(self):
 		pass
+
+
+class PlaybackModeEnum(enum.Enum):
+	GAPLESS = enum.auto()
+	CROSSFADE = enum.auto()
+
+
+class GainModeEnum(enum.Enum):
+	NONE = 0
+	REPLAY_GAIN = 1
 
 
 buf_len = None
@@ -58,7 +69,8 @@ class Playlist:
 		self._timestamp = []
 		self._track_number = 0
 		self.fading_duration = 10
-		self.playback_mode = 'gapless'
+		self.playback_mode = PlaybackModeEnum.GAPLESS
+		self._gain_mode = GainModeEnum.NONE
 		self._gui = None
 		self._playlist_len = len(self.tags)
 
@@ -77,7 +89,7 @@ class Playlist:
 		self._my_player.play()
 
 	def play(self):
-		if (self._my_player is None) or (self._my_player.isEnd()):
+		if (self._my_player is None) or (self._my_player.is_end()):
 			self.__request_optimizer(0)
 			self._start_offset = 0
 			self._track_number = 0
@@ -106,10 +118,10 @@ class Playlist:
 
 	def _count_timestamps(self):
 		self._timestamp = [self.tags[self._track_number].duration() - self._start_offset]
-		if self.playback_mode == 'gapless':
+		if self.playback_mode == PlaybackModeEnum.GAPLESS:
 			for i in range(self._track_number + 1, len(self.tags)):
 				self._timestamp.append(self._timestamp[-1] + self.tags[i].duration())
-		elif self.playback_mode == 'crossfade':
+		elif self.playback_mode == PlaybackModeEnum.CROSSFADE:
 			self._timestamp[0] -= self.fading_duration/2
 			for i in range(self._track_number + 1, len(self.tags)):
 				if i < (len(self.tags)-1):
@@ -172,22 +184,22 @@ class Playlist:
 					progressbar.step()
 					progressbar.update_idletasks()
 		else:
-			self.tags+=files
+			self.tags += files
 		self._playlist_len = len(self.tags)
 		self._count_timestamps()
 
-	def __request_optimizer(self, item: int, offset: int=0):
+	def __request_optimizer(self, item: int, offset: int = 0):
 		start_position = 0
-		if self.tags[item].start()>0:
+		if self.tags[item].start() > 0:
 			start_position = self.tags[item].start()
 			duration = None
 		else:
 			duration = self.tags[item].duration()
 		start_position += offset
-		if self.playback_mode == 'crossfade':
+		if self.playback_mode == PlaybackModeEnum.CROSSFADE:
 			self._my_player = player.CrossfadePlayer(
 				self,
-				samplerate = self.tags[item].sample_rate(),
+				samplerate=self.tags[item].sample_rate(),
 				fading_duration=self.fading_duration
 			)
 		else:
@@ -198,65 +210,77 @@ class Playlist:
 			)
 		has_offset_and_duration = start_position > 0 & (duration is not None)
 		has_offset = start_position > 0 or self.tags[item].isChapter()
-		self._my_player.openWaveStream(
+		self._my_player.open_wave_stream(
 			self.tags[item].filename(),
 			self.tags[item].container(),
 			self.tags[item].codec(),
+			gain_mode=self._gain_mode,
 			offset=start_position if has_offset else None,
 			duration=duration if has_offset_and_duration or not has_offset else None
 		)
 
-	def isStart(self):
+	def is_start(self):
 		return self.get_current_position()['track'] == 0
 
-	def change_playback_mode(self, mode):
+	def _change_playback_mode(self, mode):
+		self.playback_mode = mode
+
+	def _change_gain_mode(self, mode):
+		self._gain_mode = mode
+
+	def _change_mode(self, func, args):
 		if self._my_player is not None:
-			currentPosition = self.get_current_position()
-			state=self._my_player.isPlaying
+			current_position = self.get_current_position()
+			state = self._my_player.is_playing
 			self._my_player.clear()
 			del self._my_player
-			self._track_number=currentPosition['track']
-			self._start_offset=currentPosition['time']
-			self.playback_mode=mode
+			self._track_number = current_position['track']
+			self._start_offset = current_position['time']
+			func(*args)
 			self._count_timestamps()
 			self.__request_optimizer(self._track_number, self._start_offset)
 			if state:
 				self._my_player.play()
 		else:
-			self.playback_mode=mode
+			func(*args)
 			self._count_timestamps()
 
-	def isPlaying(self):
+	def change_playback_mode(self, mode):
+		self._change_mode(self._change_playback_mode, (mode,))
+
+	def change_gain_mode(self, mode):
+		self._change_mode(self._change_gain_mode, (mode,))
+
+	def is_playing(self):
 		if self._my_player is not None:
-			return self._my_player.isPlaying()
+			return self._my_player.is_playing()
 		return False
 
-	def isEnd(self):
+	def is_end(self):
 		if self._my_player is not None:
-			return self._my_player.isEnd()
+			return self._my_player.is_end()
 		return False
-	def nextAudioFile(self):
-		currentTrack = self.get_current_position()['track'] + 1
-		if len(self.tags)<=currentTrack:
+
+	def next_audio_file(self):
+		current_track = self.get_current_position()['track'] + 1
+		if len(self.tags) <= current_track:
 			raise EndOfPlaylistException()
-		if self.tags[currentTrack].start()>0:
-			start_position=self.tags[currentTrack].start()
+		if self.tags[current_track].start() > 0:
+			start_position = self.tags[current_track].start()
 		else:
-			start_position=0
-		if self.tags[currentTrack].iTunSMPB():
-			duration = self.tags[currentTrack].duration()
+			start_position = 0
+		if self.tags[current_track].iTunSMPB():
+			duration = self.tags[current_track].duration()
 		else:
 			duration = None
-		if start_position>0:
-			self._my_player.openWaveStream(
-				self.tags[currentTrack].filename(),
-				offset=start_position, duration=duration,
-				acodec=self.tags[currentTrack].codec(),
-				format=self.tags[currentTrack].container())
-		else:
-			self._my_player.openWaveStream(self.tags[currentTrack].filename(),
-										   self.tags[currentTrack].container(),
-										   self.tags[currentTrack].codec(), duration=duration)
+		self._my_player.open_wave_stream(
+			self.tags[current_track].filename(),
+			offset=start_position if start_position > 0 else None,
+			duration=duration,
+			gain_mode=self._gain_mode,
+			acodec=self.tags[current_track].codec(),
+			format=self.tags[current_track].container()
+		)
 
 	def gui_show_wait_banner(self):
 		self._gui.display_loading_banner()
@@ -322,7 +346,7 @@ class DeserialisedPlaylist(Playlist):
 		self._timestamp=[]
 		self._tracknumber = 0
 		self.fading_duration = 10
-		self.playback_mode = 'gapless'
+		self.playback_mode = PlaybackModeEnum.GAPLESS
 		self._gui=None
 
 def serizlize_playlist_file(filename, playlist:Playlist, gui):

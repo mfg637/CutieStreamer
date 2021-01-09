@@ -5,17 +5,20 @@
 import sounddevice, struct, threading, math
 from abc import ABCMeta, abstractmethod
 from . import playlist, streamers
+from .playlist import GainModeEnum
 from audiolib import timecode
+
 
 class Player():
 	__metaclass__ = ABCMeta
 
 	@abstractmethod
 	def __init__(self):
-		self._samplecount=0
-		self._buffer=[]
-		self._buffer_size=1136*8
-		self._samplerate=0
+		self._samplecount = 0
+		self._buffer = []
+		self._blocksize = 1136
+		self._buffer_size = self._blocksize*8
+		self._samplerate = 0
 
 	def play(self):
 		if not self._end:
@@ -26,28 +29,33 @@ class Player():
 
 	def pause(self):
 		self._outputStream.stop()
-		self.playing=False
+		self.playing = False
 
 	def _callback(self, outdata, frames, time, status):
-		self._samplecount+=frames
+		self._samplecount += frames
 		data = self.extract_from_buffer()
-		if (len(data)<frames*8):
-			self._end=True
-			while len(data)<frames*8:
-				data+=struct.pack('<f', 0)
-			outdata[:]=data[:]
+		if len(data) < frames*8:
+			self._end = True
+			while len(data) < frames*8:
+				data += struct.pack('<f', 0)
+			outdata[:] = data[:]
 			raise sounddevice.CallbackStop
 		else:
-			outdata[:]=data
+			outdata[:] = data
 
 	def run(self):
-		i=0
-		while i<3:
+		i = 0
+		while i < 3:
 			self._buffer.append(self._streamer.read(self._buffer_size))
-			i+=1
+			i += 1
 		if not self._end:
-			self._outputStream = sounddevice.RawOutputStream(samplerate=self._samplerate, channels=2,
-				dtype='float32', callback=self._callback, blocksize=1136)
+			self._outputStream = sounddevice.RawOutputStream(
+				samplerate=self._samplerate,
+				channels=2,
+				dtype='float32',
+				callback=self._callback,
+				blocksize=self._blocksize
+			)
 
 	def clear(self):
 		if self._outputStream is not None:
@@ -56,22 +64,22 @@ class Player():
 		self._streamer.close()
 
 	def getCurrentPosition(self):
-		start_loading=threading.Thread(target=self.load_buff)
+		start_loading = threading.Thread(target=self.load_buff)
 		start_loading.run()
 		return self._samplecount/self._samplerate
 
-	def isPlaying(self):
+	def is_playing(self):
 		if self._end:
 			return False
 		if self._outputStream is not None:
 			return bool(self._outputStream.active)
 		return False
 
-	def isEnd(self):
+	def is_end(self):
 		return self._end
 
 	def extract_from_buffer(self):
-		if len(self._buffer)==0:
+		if len(self._buffer) == 0:
 			self.load_buff()
 		try:
 			return self._buffer.pop(0)
@@ -79,11 +87,20 @@ class Player():
 			self.load_buff()
 		return self._buffer.pop(0)
 
-	def openWaveStream(self, file, format, acodec, *, offset=None, duration=None):
-		if format == 'ogg' and acodec == 'opus' and (offset is None):
-			self._streamer = streamers.OpusDecoder(file, self._samplerate, offset=offset)
+	def open_wave_stream(self, file, format, acodec, gain_mode: GainModeEnum, *, offset=None, duration=None):
+		if format == 'ogg' and acodec == 'opus':
+			if offset is None:
+				self._streamer = streamers.OpusDecoder(file, self._samplerate, offset=offset, gain=gain_mode)
+			else:
+				self._streamer = streamers.FFmpeg(
+					file,
+					self._samplerate,
+					offset=offset,
+					duration=duration,
+					gain="5dB" if gain_mode == GainModeEnum.REPLAY_GAIN else GainModeEnum.NONE
+				)
 		else:
-			self._streamer = streamers.FFmpeg(file, self._samplerate, offset=offset, duration=duration)
+			self._streamer = streamers.FFmpeg(file, self._samplerate, offset=offset, duration=duration, gain=gain_mode)
 
 	@abstractmethod
 	def load_buff(self):
@@ -108,7 +125,8 @@ class GaplessPlayer(Player):
 				self._buf_len = int(math.ceil(int(buf_len[:-1])*self._samplerate/1136))
 			else:
 				self._buf_len = int(math.ceil(float(buf_len)))
-		self._buffer_size=1136*8
+		self._blocksize = 1136
+		self._buffer_size=self._blocksize*8
 		self._ffmpeg=None
 		self._streamer = None
 		self.playing=False
@@ -133,7 +151,7 @@ class GaplessPlayer(Player):
 
 	def open_next_file(self, data):
 		try:
-			self._playlist_instance.nextAudioFile()
+			self._playlist_instance.next_audio_file()
 		except playlist.EndOfPlaylistException:
 			pass
 		else:
@@ -145,6 +163,7 @@ class GaplessPlayer(Player):
 	def streamActive(self):
 		return self._outputStream.active()
 
+
 class CrossfadePlayer(Player):
 	def __init__(self, playlist, samplerate=44100, buf_len=None, *, fading_duration=10):
 		self._playlist_instance=playlist
@@ -152,7 +171,8 @@ class CrossfadePlayer(Player):
 			self._samplerate=samplerate
 		else:
 			self._samplerate=44100
-		self._buffer_size=1136*8
+		self._blocksize = 1136
+		self._buffer_size=self._blocksize*8
 		self._ffmpeg=None
 		self._streamer = None
 		self.playing=False
@@ -163,6 +183,7 @@ class CrossfadePlayer(Player):
 		self._end=False
 		self._buffer=[]
 		self._fill_buffer=True
+
 	def load_buff(self):
 		if self._fill_buffer:
 			i=0
@@ -172,7 +193,7 @@ class CrossfadePlayer(Player):
 				if (len(data)<self._buffer_size):
 					self._fill_buffer = False
 					try:
-						self._playlist_instance.nextAudioFile()
+						self._playlist_instance.next_audio_file()
 						self._buffer.append(data)
 						thread=threading.Thread(target=self.__crossfadeAudio)
 						thread.start()
@@ -186,7 +207,8 @@ class CrossfadePlayer(Player):
 					# in that case wave data has been droped
 					if self._fill_buffer:
 						self._buffer.append(data)
-				i+=1
+				i += 1
+
 	def __crossfadeAudio(self, fading_duration=10):
 		if len(self._buffer)>math.ceil(self._samplerate/1136*fading_duration):
 			step=1/(self._samplerate*fading_duration)
@@ -216,7 +238,8 @@ class CrossfadePlayer(Player):
 			for value in subbuf:
 				self._buffer[-i]+=struct.pack('<f', value)
 		self._fill_buffer=True
-		if not self.isPlaying:
+		if not self.is_playing:
 			self.play()
+
 	def streamActive(self):
 		return self._outputStream.active()

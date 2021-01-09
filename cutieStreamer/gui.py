@@ -14,6 +14,7 @@ from tkinter import Tk, PhotoImage, Menu, DISABLED, Frame, Label, HORIZONTAL, NO
 from tkinter import ttk, filedialog, messagebox
 from audiolib import tagIndexer
 from . import playlist
+from .playlist import GainModeEnum, PlaybackModeEnum
 from PIL import Image, ImageTk
 import gui
 import converter
@@ -27,7 +28,7 @@ class GUI:
 		if _playlist is not None and \
 			isinstance(_playlist, playlist.Playlist):
 			self._playlist=_playlist
-			self._playlist.setGui(self)
+			self._playlist.set_gui(self)
 		else:
 			self._playlist = None
 		self._root=Tk()
@@ -51,9 +52,9 @@ class GUI:
 			"loading_banner.png"))
 		self._loading_banner_img=ImageTk.PhotoImage(self._loading_banner_img_PILobj)
 		self.loading_banner = None
-		self.playback_mode=0
-		self.plmd=0
-		self._trackPropertiesFrame=None
+		self.playback_mode = PlaybackModeEnum.GAPLESS
+		self.gain_mode = GainModeEnum.NONE
+		self._trackPropertiesFrame = None
 
 		self._inf_labels = gui.components.TrackInfo(self._root, width=320)
 		self._inf_labels.grid(row=0, column=0, sticky='w')
@@ -97,29 +98,66 @@ class GUI:
 		self._next_btn.bind_menu_item(self._playback_menu, 3)
 		self._playback_menu.add_separator()
 
-		self._playback_menu.add_checkbutton(label="gapless playback",
-			command=self.setGaplessMode, state=(NORMAL if self._playlist is not None else DISABLED),
-			onvalue=0, variable=self.plmd)
-		self._playback_menu.add_checkbutton(label="crossfade playback",
-			command=self.setCrossfadeMode, state=(NORMAL if self._playlist is not None else DISABLED),
-			onvalue=1, variable=self.plmd)
+		self._playback_menu.add_checkbutton(
+			label="gapless playback",
+			command=self.setGaplessMode,
+			state=(NORMAL if self._playlist is not None else DISABLED),
+			onvalue=PlaybackModeEnum.GAPLESS.value,
+			variable=self.playback_mode.value
+		)
+		self._playback_menu.add_checkbutton(
+			label="crossfade playback",
+			command=self.setCrossfadeMode,
+			state=(NORMAL if self._playlist is not None else DISABLED),
+			onvalue=PlaybackModeEnum.CROSSFADE.value,
+			variable=self.playback_mode.value
+		)
 		self._menubar.add_cascade(label="Playback", menu=self._playback_menu)
 
 		self._playlist_menu = Menu(self._menubar, tearoff=0)
-		self._playlist_menu.add_command(label="Create playlist",
-			command=self._playlist_creator)
-		self._playlist_menu.add_command(label="Scan directory in new playlist",
-			command=self._scandir)
-		self._playlist_menu.add_command(label="Add files to current playlist",
-			command=self._add_track_in_playlist, state=DISABLED)
-		self._playlist_menu.add_command(label="Scan directory to current playlist",
-			command=self._addDirectoryToPlaylist, state=DISABLED)
+		self._playlist_menu.add_command(
+			label="Create playlist",
+			command=self._playlist_creator
+		)
+		self._playlist_menu.add_command(
+			label="Scan directory in new playlist",
+			command=self._scandir
+		)
+		self._playlist_menu.add_command(
+			label="Add files to current playlist",
+			command=self._add_track_in_playlist, state=DISABLED
+		)
+		self._playlist_menu.add_command(
+			label="Scan directory to current playlist",
+			command=self._addDirectoryToPlaylist,
+			state=DISABLED
+		)
 		self._playlist_menu.add_separator()
-		self._playlist_menu.add_command(label="Open playlist",
-			command=self.__open_playlist)
-		self._playlist_menu.add_command(label="Save playlist",
-			command=self.__save_playlist, state=DISABLED)
+		self._playlist_menu.add_command(
+			label="Open playlist",
+			command=self.__open_playlist
+		)
+		self._playlist_menu.add_command(
+			label="Save playlist",
+			command=self.__save_playlist, state=DISABLED
+		)
 		self._menubar.add_cascade(label="Playlist", menu=self._playlist_menu)
+
+		self._gain_menu = Menu(self._menubar, tearoff=0)
+		self._gain_menu.add_checkbutton(
+			label="None",
+			command=self.disable_gain,
+			onvalue=GainModeEnum.NONE.value,
+			variable=self.gain_mode.value
+		)
+		self._gain_menu.add_separator()
+		self._gain_menu.add_checkbutton(
+			label="Replay Gain",
+			command=self.set_replay_gain,
+			onvalue=GainModeEnum.REPLAY_GAIN.value,
+			variable=self.gain_mode.value
+		)
+		self._menubar.add_cascade(label="Gain", menu=self._gain_menu)
 
 		self._root.config(menu=self._menubar)
 
@@ -140,7 +178,7 @@ class GUI:
 
 		self._timeline.grid(row=2, column=0)
 
-		if system()=="Windows":
+		if system() == "Windows":
 			self._playlist_box = gui.components.playlist.PlaylistWidget(self._root, width=48, height=0)
 		else:
 			self._playlist_box = gui.components.playlist.PlaylistWidget(self._root, width=40, height=0)
@@ -193,8 +231,8 @@ class GUI:
 
 		self._root.mainloop()
 
-	def _togle_play_state(self):
-		if self._playlist.isPlaying():
+	def _togle_play_state(self, event=None):
+		if self._playlist.is_playing():
 			self._playlist.pause()
 			self._playstate_label['text'] = 'playback stoped'
 			self._playpause_btn.setPlay()
@@ -204,7 +242,7 @@ class GUI:
 			self._playlist.play()
 			self._playpause_btn.setPause()
 			self._playback_menu.entryconfig(1, state=NORMAL)
-			self._current_track_number = self._playlist.currentPosition()['track']
+			self._current_track_number = self._playlist.get_current_position()['track']
 			self._playing_update()
 
 	def _stop(self, event=None):
@@ -219,16 +257,16 @@ class GUI:
 	def select_item(self, track):
 		if self._playing_timer is not None:
 			self._root.after_cancel(self._playing_timer)
-		self._playlist.PlayFromItem(track)
+		self._playlist.play_from_item(track)
 		self._playback_menu.entryconfig(1, state=NORMAL)
 		self._playing_update()
 		self._playpause_btn.setPause()
 
 	def _playing_update(self):
-		if not self._playlist.isEnd():
+		if not self._playlist.is_end():
 			self._playpause_btn.setPause()
 			self._playing_timer = self._root.after(100, self._playing_update)
-			Position=self._playlist.currentPosition()
+			Position=self._playlist.get_current_position()
 			if Position['track']>0:
 				self._prev_btn.enable()
 			else:
@@ -244,7 +282,7 @@ class GUI:
 			self._codec_label['text'] = self._playlist.tags[Position['track']].codec().upper()
 			self._bitrade_label['text'] = str(
 				int(self._playlist.tags[Position['track']].bitrate()))+'kbps'
-			self._playstate_label['text'] = self._playlist.playback_mode+' playback'
+			self._playstate_label['text'] = self._playlist.playback_mode.name.lower()+' playback'
 		else:
 			self._playpause_btn.setReplay()
 
@@ -275,7 +313,7 @@ class GUI:
 					self._playlist.clear()
 					del self._playlist
 				self._playlist = playlist.Playlist(filelist, progressbar = self.loading_banner.progressbar)
-				self._playlist.setGui(self)
+				self._playlist.set_gui(self)
 				if self.playback_mode==0:
 					self._playlist.playback_mode='gapless'
 				elif self.playback_mode==1:
@@ -295,7 +333,7 @@ class GUI:
 			self._playpause_btn.setPlay()
 			self._playstate_label['text'] = 'playback stoped'
 			self.__lock_prev_next_buttons()
-		elif self._playlist is not None and self._playlist.isPlaying():
+		elif self._playlist is not None and self._playlist.is_playing():
 			self._playing_update()
 		self.hide_loading_banner()
 
@@ -310,7 +348,7 @@ class GUI:
 		if len(filelist):
 			self.loading_banner.progressbar['maximum'] = len(filelist)
 			try:
-				self._playlist.addFiles(filelist, progressbar = self.loading_banner.progressbar)
+				self._playlist.add_files(filelist, progressbar = self.loading_banner.progressbar)
 			except tagIndexer.CUEparserError as e:
 				messagebox.showerror('CUEindexer', 'Error at line:\n'+
 					e.line+e.message)
@@ -323,7 +361,7 @@ class GUI:
 				self._playlist_box.append(self._playlist.tags, self.select_item, self.openAlbumDialogue)
 				if self._playlist.state():
 					self._playing_update()
-		elif self._playlist is not None and self._playlist.isPlaying():
+		elif self._playlist is not None and self._playlist.is_playing():
 			self._playing_update()
 		self.hide_loading_banner()
 
@@ -334,8 +372,8 @@ class GUI:
 			title="select music folder")
 		if directory:
 			try:
-				self._playlist.addFiles(tagIndexer.folder_indexer(directory,
-										progressbar = self.loading_banner.progressbar))
+				self._playlist.add_files(tagIndexer.folder_indexer(directory,
+																   progressbar = self.loading_banner.progressbar))
 			except tagIndexer.CUEparserError as e:
 				messagebox.showerror('CUEindexer', 'Error at line:\n'+
 					e.line+e.message)
@@ -345,7 +383,7 @@ class GUI:
 					self._playing_update()
 			self._playpause_btn.setPlay()
 			self._playstate_label['text'] = 'playback stoped'
-		elif self._playlist is not None and self._playlist.isPlaying():
+		elif self._playlist is not None and self._playlist.is_playing():
 			self._playing_update()
 		self.hide_loading_banner()
 
@@ -362,7 +400,7 @@ class GUI:
 			try:
 				self._playlist = playlist.Playlist(tagIndexer.folder_indexer(directory,
 													progressbar = self.loading_banner.progressbar))
-				self._playlist.setGui(self)
+				self._playlist.set_gui(self)
 				if self.playback_mode==0:
 					self._playlist.playback_mode='gapless'
 				elif self.playback_mode==1:
@@ -378,28 +416,28 @@ class GUI:
 				self._playpause_btn.setPlay()
 				self._playstate_label['text'] = 'playback stoped'
 				self.__lock_prev_next_buttons()
-		elif self._playlist is not None and self._playlist.isPlaying():
+		elif self._playlist is not None and self._playlist.is_playing():
 			self._playing_update()
 		self.hide_loading_banner()
 
 	def __prev_track_change(self):
-		Position = self._playlist.currentPosition()
-		if not self._playlist.isStart():
+		Position = self._playlist.get_current_position()
+		if not self._playlist.is_start():
 			if self._playing_timer is not None:
 				self._root.after_cancel(self._playing_timer)
 			prev_track = Position['track']-1
-			self._playlist.PlayFromItem(prev_track)
+			self._playlist.play_from_item(prev_track)
 			if prev_track == 0:
 				self._prev_btn.disable()
 		self._playing_update()
 
 	def __next_track_change(self):
-		Position = self._playlist.currentPosition()
-		if not self._playlist.isEnd():
+		Position = self._playlist.get_current_position()
+		if not self._playlist.is_end():
 			if self._playing_timer is not None:
 				self._root.after_cancel(self._playing_timer)
 			next_track = Position['track']+1
-			self._playlist.PlayFromItem(next_track)
+			self._playlist.play_from_item(next_track)
 			if next_track < (self._playlist.get_playlist_len() -1):
 				self._next_btn.enable()
 			else:
@@ -434,21 +472,32 @@ class GUI:
 	def hide_loading_banner(self):
 		del self.loading_banner
 
-	def setGaplessMode(self):
+	def _set_playback_mode(self, mode):
+		self._playlist.change_playback_mode(mode)
+		self.playback_mode = mode
+
+	def _set_gain_mode(self, mode):
+		self._playlist.change_gain_mode(mode)
+		self.gain_mode = mode
+
+	def _set_mode(self, func, args):
 		if self._playing_timer is not None:
 			self._root.after_cancel(self._playing_timer)
-		self._playlist.change_playback_mode('gapless')
+		func(*args)
 		if self._playlist.state():
 			self._playing_update()
-		self.playback_mode=0
+
+	def setGaplessMode(self):
+		self._set_mode(self._set_playback_mode, (PlaybackModeEnum.GAPLESS,))
 
 	def setCrossfadeMode(self):
-		if self._playing_timer is not None:
-			self._root.after_cancel(self._playing_timer)
-		self._playlist.change_playback_mode('crossfade')
-		if self._playlist.state():
-			self._playing_update()
-		self.playback_mode=1
+		self._set_mode(self._set_playback_mode, (PlaybackModeEnum.CROSSFADE,))
+
+	def disable_gain(self):
+		self._set_mode(self._set_gain_mode, (GainModeEnum.NONE,))
+
+	def set_replay_gain(self):
+		self._set_mode(self._set_gain_mode, (GainModeEnum.REPLAY_GAIN,))
 
 	def __lock_prev_next_buttons(self):
 		self._prev_btn.disable()
@@ -482,7 +531,7 @@ class GUI:
 				self._playlist.serialize(filename)
 			elif filename.suffix.lower() == ".m3u8":
 				self._playlist.save_m3u8(filename)
-		if self._playlist is not None and self._playlist.isPlaying():
+		if self._playlist is not None and self._playlist.is_playing():
 			self._playing_update()
 
 	def setPlaylist(self, _playlist, cover_thumbnails):
@@ -493,7 +542,7 @@ class GUI:
 			self._playlist.clear()
 			del self._playlist
 		self._playlist = _playlist
-		self._playlist.setGui(self)
+		self._playlist.set_gui(self)
 		if self.playback_mode==0:
 			self._playlist.playback_mode='gapless'
 		elif self.playback_mode==1:
@@ -527,7 +576,7 @@ class GUI:
 					self._playlist.clear()
 					del self._playlist
 				self._playlist = playlist.DeserialisedPlaylist(filename)
-				self._playlist.setGui(self)
+				self._playlist.set_gui(self)
 				if self.playback_mode==0:
 					self._playlist.playback_mode='gapless'
 				elif self.playback_mode==1:
@@ -546,8 +595,8 @@ class GUI:
 		self.hide_loading_banner()
 
 	def __showPropertiesFrame(self):
-		if self._playlist.isPlaying():
-			Position=self._playlist.currentPosition()
+		if self._playlist.is_playing():
+			Position=self._playlist.get_current_position()
 			self._trackPropertiesFrame = gui.dialogues.TrackProperties(self._root,
 				self._playlist.tags[Position['track']], self)
 		else:
@@ -586,7 +635,7 @@ class GUI:
 			self._root.after_cancel(self._playing_timer)
 
 	def unfreeze(self):
-		if self._playlist is not None and self._playlist.isPlaying():
+		if self._playlist is not None and self._playlist.is_playing():
 			self._playing_update()
 
 	def openAlbumDialogue(self, album, artist, tracks):
@@ -616,24 +665,24 @@ class GUI:
 		convert_thread.start()
 	
 	def __seek_back(self, event):
-		if self._playlist.isPlaying():
+		if self._playlist.is_playing():
 			self._root.after_cancel(self._playing_timer)
-			time = self._playlist.currentPosition()['time']
+			time = self._playlist.get_current_position()['time']
 			self._playlist.seek(time-10)
 			self._playing_timer = self._root.after(100, self._playing_update)
 			self._playpause_btn.setPause()
 
 	def __seek_forward(self, event):
-		if self._playlist.isPlaying():
+		if self._playlist.is_playing():
 			self._root.after_cancel(self._playing_timer)
-			time = self._playlist.currentPosition()['time']
+			time = self._playlist.get_current_position()['time']
 			self._playlist.seek(time+10)
 			self._playing_timer = self._root.after(100, self._playing_update)
 			self._playpause_btn.setPause()
 
 	def pynput_global_key_listener(self, key):
 		if self._playlist is not None:
-			position = self._playlist.currentPosition()
+			position = self._playlist.get_current_position()
 			if key == pynput.keyboard.KeyCode(vk=269025044) or key == pynput.keyboard.KeyCode(vk=269025073):
 				self._togle_play_state()
 			elif key == pynput.keyboard.KeyCode(vk=269025046):
