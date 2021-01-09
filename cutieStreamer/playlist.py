@@ -1,17 +1,23 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
-#playlist by mfg637
+# playlist by mfg637
 
-import json, os, zlib, struct, io, sys
-from . import player, playlist_file_format
-from PIL import Image
-from audiolib.tagIndexer import MusicFile, CUEindexer, DeserializeMusicTrack, m3u_indexer
+import io
+import json
+import os
 import subprocess
+import sys
+import zlib
 from platform import system
 
-if system()=='Windows':
-	si = subprocess.STARTUPINFO()
-	si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+from PIL import Image
+
+from audiolib.tagIndexer import MusicFile, CUEindexer, DeserializeMusicTrack, m3u_indexer
+from . import player, playlist_file_format
+
+if system() == 'Windows':
+	status_info = subprocess.STARTUPINFO()
+	status_info.dwFlags |= subprocess.STARTF_USESHOWWINDOW
 
 
 class EndOfPlaylistException(Exception):
@@ -22,149 +28,146 @@ class EndOfPlaylistException(Exception):
 buf_len = None
 
 
-class Playlist():
+class Playlist:
 	"""Class describes playlist and is a wrapper for player.
 		Only one instance can be displayed in gui."""
 	def __init__(self, files, progressbar=None):
-		self.tags=[]
+		self.tags = []
 		if type(files[0]) is str:
 			for file in files:
-				if os.path.splitext(file)[1]=='.cue':
+				if os.path.splitext(file)[1] == '.cue':
 					self.tags += CUEindexer(file)
-				elif os.path.splitext(file)[1]=='.m3u':
+				elif os.path.splitext(file)[1] == '.m3u':
 					self.tags += m3u_indexer(file)
-				elif os.path.splitext(file)[1]=='.m3u8':
+				elif os.path.splitext(file)[1] == '.m3u8':
 					self.tags += m3u_indexer(file, unicode=True)
 				else:
-					FileIndex=MusicFile(file)
-					if FileIndex.getChapter():
-						for i in range(FileIndex.getChapter()):
-							self.tags.append(FileIndex.getChapter(i))
+					file_index = MusicFile(file)
+					if file_index.getChapter():
+						for i in range(file_index.getChapter()):
+							self.tags.append(file_index.getChapter(i))
 					else:
-						self.tags.append(FileIndex)
+						self.tags.append(file_index)
 				if progressbar is not None:
 					progressbar.step()
 					progressbar.update_idletasks()
 		else:
-			self.tags=files
-		self._myplayer=None
-		self._start_offset=0
-		self._timestamp=[]
-		self._tracknumber = 0
+			self.tags = files
+		self._my_player = None
+		self._start_offset = 0
+		self._timestamp = []
+		self._track_number = 0
 		self.fading_duration = 10
 		self.playback_mode = 'gapless'
-		self._gui=None
+		self._gui = None
 		self._playlist_len = len(self.tags)
 
-	def setGui(self, link):
-		"Bind GUI class for this playlist"
-		self._gui=link
+	def set_gui(self, link):
+		"""Bind GUI class for this playlist"""
+		self._gui = link
 
-	def PlayFromItem(self, item: int):
-		if self._myplayer is not None:
-			self._myplayer.clear()
-			del self._myplayer
-		self._tracknumber = item
+	def play_from_item(self, item: int):
+		if self._my_player is not None:
+			self._my_player.clear()
+			del self._my_player
+		self._track_number = item
 		self._start_offset = 0
 		self._count_timestamps()
 		self.__request_optimizer(item)
-		self._myplayer.play()
+		self._my_player.play()
 
 	def play(self):
-		if (self._myplayer is None) or (self._myplayer.isEnd()):
+		if (self._my_player is None) or (self._my_player.isEnd()):
 			self.__request_optimizer(0)
-			self._start_offset=0
-			self._tracknumber = 0
+			self._start_offset = 0
+			self._track_number = 0
 			self._count_timestamps()
-		self._myplayer.play()
+		self._my_player.play()
 
 	def pause(self):
-		self._myplayer.pause()
+		self._my_player.pause()
 
 	def state(self):
-		if self._myplayer is None:
+		if self._my_player is None:
 			return False
 		else:
-			return self._myplayer.playing
+			return self._my_player.playing
 
 	def stop(self):
-		self._myplayer.clear()
-		del self._myplayer
-		self._myplayer=None
+		self._my_player.clear()
+		del self._my_player
+		self._my_player = None
 
 	def clear(self):
-		if self._myplayer is not None:
-			self._myplayer.clear()
-			del self._myplayer
-			self._myplayer=None
+		if self._my_player is not None:
+			self._my_player.clear()
+			del self._my_player
+			self._my_player = None
 
 	def _count_timestamps(self):
-		self._timestamp=[self.tags[self._tracknumber].duration()-self._start_offset]
-		if self.playback_mode=='gapless':
-			for i in range(self._tracknumber+1, len(self.tags)):
-				self._timestamp.append(self._timestamp[-1]+
-					self.tags[i].duration())
-		elif self.playback_mode=='crossfade':
-			self._timestamp[0]-=self.fading_duration/2
-			for i in range(self._tracknumber+1, len(self.tags)):
-				if i<(len(self.tags)-1):
-					self._timestamp.append(self._timestamp[-1]+
-						self.tags[i].duration()-self.fading_duration)
+		self._timestamp = [self.tags[self._track_number].duration() - self._start_offset]
+		if self.playback_mode == 'gapless':
+			for i in range(self._track_number + 1, len(self.tags)):
+				self._timestamp.append(self._timestamp[-1] + self.tags[i].duration())
+		elif self.playback_mode == 'crossfade':
+			self._timestamp[0] -= self.fading_duration/2
+			for i in range(self._track_number + 1, len(self.tags)):
+				if i < (len(self.tags)-1):
+					self._timestamp.append(self._timestamp[-1] + self.tags[i].duration()-self.fading_duration)
 				else:
-					self._timestamp.append(self._timestamp[-1]+
-						self.tags[i].duration()-self.fading_duration/2)
+					self._timestamp.append(self._timestamp[-1] + self.tags[i].duration()-self.fading_duration/2)
 
-	def currentPosition(self):
+	def get_current_position(self):
 		""" Get current track number and playing time.
 
 			Returns:
 			dict{
 				'track': "number of current track on tags list",
-				'time': "curent position in seconds"
+				'time': "current position in seconds"
 			}
 		"""
-		if self._myplayer is not None:
-			player_position=self._myplayer.getCurrentPosition()
-			i=0
+		if self._my_player is not None:
+			player_position = self._my_player.getCurrentPosition()
+			i = 0
 			try:
-				while (player_position>self._timestamp[i]):
-					i+=1
+				while player_position > self._timestamp[i]:
+					i += 1
 			except IndexError:
 				print('index error')
 				raise EndOfPlaylistException()
-			if i>0:
-				currentPosition=player_position-self._timestamp[i-1]
+			if i > 0:
+				current_position = player_position - self._timestamp[i - 1]
 			else:
-				currentPosition=player_position+self._start_offset
-			return {'track': self._tracknumber+i, 'time': currentPosition}
+				current_position = player_position + self._start_offset
+			return {'track': self._track_number + i, 'time': current_position}
 		else:
 			return {'track': 0, 'time': 0}
 
 	def seek(self, time):
-		player_position=self._myplayer.getCurrentPosition()
-		i=0
-		while (player_position>self._timestamp[i]):
-			i+=1
-		self._tracknumber+=i
-		self._start_offset=time
+		player_position = self._my_player.getCurrentPosition()
+		i = 0
+		while player_position > self._timestamp[i]:
+			i += 1
+		self._track_number += i
+		self._start_offset = time
 		self._count_timestamps()
-		self._myplayer.clear()
-		del self._myplayer
-		self.__request_optimizer(self._tracknumber, time)
-		self._myplayer.play()
+		self._my_player.clear()
+		del self._my_player
+		self.__request_optimizer(self._track_number, time)
+		self._my_player.play()
 
-	def addFiles(self, files, progressbar = None):
+	def add_files(self, files, progressbar=None):
 		if type(files[0]) is str:
 			for file in files:
-				if file[-3:]=='cue':
+				if file[-3:] == 'cue':
 					self.tags += CUEindexer(file)
 				else:
-					FileIndex=MusicFile(file)
-					if FileIndex.getChapter():
-						for i in range(FileIndex.getChapter()):
-							self.tags.append(FileIndex.getChapter(i))
+					file_index = MusicFile(file)
+					if file_index.getChapter():
+						for i in range(file_index.getChapter()):
+							self.tags.append(file_index.getChapter(i))
 					else:
-						self.tags.append(FileIndex)
+						self.tags.append(file_index)
 				if progressbar is not None:
 					progressbar.step()
 					progressbar.update_idletasks()
@@ -182,52 +185,58 @@ class Playlist():
 			duration = self.tags[item].duration()
 		start_position += offset
 		if self.playback_mode == 'crossfade':
-			self._myplayer = player.CrossfadePlayer(self,
+			self._my_player = player.CrossfadePlayer(
+				self,
 				samplerate = self.tags[item].sample_rate(),
-				fading_duration=self.fading_duration)
+				fading_duration=self.fading_duration
+			)
 		else:
-			self._myplayer=player.GaplessPlayer(self, samplerate=self.tags[item].sample_rate(), buf_len=buf_len)
-		if start_position>0 & (duration is not None):
-			self._myplayer.openWaveStream(self.tags[item].filename(), self.tags[item].container(),
-				self.tags[item].codec(), offset=start_position, duration=duration)
-		elif start_position>0 or self.tags[item].isChapter():
-			self._myplayer.openWaveStream(self.tags[item].filename(), self.tags[item].container(),
-				self.tags[item].codec(), offset=start_position)
-		else:
-			self._myplayer.openWaveStream(self.tags[item].filename(), self.tags[item].container(),
-				self.tags[item].codec(), duration=duration)
+			self._my_player = player.GaplessPlayer(
+				self,
+				samplerate=self.tags[item].sample_rate(),
+				buf_len=buf_len
+			)
+		has_offset_and_duration = start_position > 0 & (duration is not None)
+		has_offset = start_position > 0 or self.tags[item].isChapter()
+		self._my_player.openWaveStream(
+			self.tags[item].filename(),
+			self.tags[item].container(),
+			self.tags[item].codec(),
+			offset=start_position if has_offset else None,
+			duration=duration if has_offset_and_duration or not has_offset else None
+		)
 
 	def isStart(self):
-		return self.currentPosition()['track']==0
+		return self.get_current_position()['track'] == 0
 
 	def change_playback_mode(self, mode):
-		if self._myplayer is not None:
-			currentPosition=self.currentPosition()
-			state=self._myplayer.isPlaying
-			self._myplayer.clear()
-			del self._myplayer
-			self._tracknumber=currentPosition['track']
+		if self._my_player is not None:
+			currentPosition = self.get_current_position()
+			state=self._my_player.isPlaying
+			self._my_player.clear()
+			del self._my_player
+			self._track_number=currentPosition['track']
 			self._start_offset=currentPosition['time']
 			self.playback_mode=mode
 			self._count_timestamps()
-			self.__request_optimizer(self._tracknumber, self._start_offset)
+			self.__request_optimizer(self._track_number, self._start_offset)
 			if state:
-				self._myplayer.play()
+				self._my_player.play()
 		else:
 			self.playback_mode=mode
 			self._count_timestamps()
 
 	def isPlaying(self):
-		if self._myplayer is not None:
-			return self._myplayer.isPlaying()
+		if self._my_player is not None:
+			return self._my_player.isPlaying()
 		return False
 
 	def isEnd(self):
-		if self._myplayer is not None:
-			return self._myplayer.isEnd()
+		if self._my_player is not None:
+			return self._my_player.isEnd()
 		return False
 	def nextAudioFile(self):
-		currentTrack = self.currentPosition()['track']+1
+		currentTrack = self.get_current_position()['track'] + 1
 		if len(self.tags)<=currentTrack:
 			raise EndOfPlaylistException()
 		if self.tags[currentTrack].start()>0:
@@ -239,15 +248,15 @@ class Playlist():
 		else:
 			duration = None
 		if start_position>0:
-			self._myplayer.openWaveStream(
+			self._my_player.openWaveStream(
 				self.tags[currentTrack].filename(),
 				offset=start_position, duration=duration,
 				acodec=self.tags[currentTrack].codec(),
 				format=self.tags[currentTrack].container())
 		else:
-			self._myplayer.openWaveStream(self.tags[currentTrack].filename(),
-				self.tags[currentTrack].container(),
-				self.tags[currentTrack].codec(), duration=duration)
+			self._my_player.openWaveStream(self.tags[currentTrack].filename(),
+										   self.tags[currentTrack].container(),
+										   self.tags[currentTrack].codec(), duration=duration)
 
 	def gui_show_wait_banner(self):
 		self._gui.display_loading_banner()
@@ -352,7 +361,7 @@ def _encode_webp(img):
 	]
 	if system()=='Windows':
 		process = subprocess.Popen(
-			commandline, stdin=subprocess.PIPE, stdout=subprocess.PIPE, startupinfo=si
+			commandline, stdin=subprocess.PIPE, stdout=subprocess.PIPE, startupinfo=status_info
 		)
 	else:
 		process = subprocess.Popen(commandline, stdin=subprocess.PIPE, stdout=subprocess.PIPE)

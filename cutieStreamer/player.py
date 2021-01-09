@@ -9,21 +9,25 @@ from audiolib import timecode
 
 class Player():
 	__metaclass__ = ABCMeta
+
 	@abstractmethod
 	def __init__(self):
 		self._samplecount=0
 		self._buffer=[]
 		self._buffer_size=1136*8
 		self._samplerate=0
+
 	def play(self):
 		if not self._end:
 			if self._outputStream is None:
 				self.run()
 			self._outputStream.start()
 			self.playing=True
+
 	def pause(self):
 		self._outputStream.stop()
 		self.playing=False
+
 	def _callback(self, outdata, frames, time, status):
 		self._samplecount+=frames
 		data = self.extract_from_buffer()
@@ -35,6 +39,7 @@ class Player():
 			raise sounddevice.CallbackStop
 		else:
 			outdata[:]=data
+
 	def run(self):
 		i=0
 		while i<3:
@@ -43,23 +48,28 @@ class Player():
 		if not self._end:
 			self._outputStream = sounddevice.RawOutputStream(samplerate=self._samplerate, channels=2,
 				dtype='float32', callback=self._callback, blocksize=1136)
+
 	def clear(self):
 		if self._outputStream is not None:
 			self._outputStream.stop()
 			self._outputStream.close()
 		self._streamer.close()
+
 	def getCurrentPosition(self):
 		start_loading=threading.Thread(target=self.load_buff)
 		start_loading.run()
 		return self._samplecount/self._samplerate
+
 	def isPlaying(self):
 		if self._end:
 			return False
 		if self._outputStream is not None:
 			return bool(self._outputStream.active)
 		return False
+
 	def isEnd(self):
 		return self._end
+
 	def extract_from_buffer(self):
 		if len(self._buffer)==0:
 			self.load_buff()
@@ -68,12 +78,13 @@ class Player():
 		except IndexError:
 			self.load_buff()
 		return self._buffer.pop(0)
+
 	def openWaveStream(self, file, format, acodec, *, offset=None, duration=None):
-		if format=='ogg' and acodec=='opus' and (offset is None):
-			self._streamer=streamers.OpusDecoder(file, self._samplerate, offset=offset)
+		if format == 'ogg' and acodec == 'opus' and (offset is None):
+			self._streamer = streamers.OpusDecoder(file, self._samplerate, offset=offset)
 		else:
-			self._streamer=streamers.FFmpeg(file, self._samplerate, offset=offset, duration=duration)
-	__metaclass__ = ABCMeta
+			self._streamer = streamers.FFmpeg(file, self._samplerate, offset=offset, duration=duration)
+
 	@abstractmethod
 	def load_buff(self):
 		pass

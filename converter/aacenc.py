@@ -6,8 +6,8 @@ from platform import system
 from .exceptions import NotFountAvaibleEncoders
 
 if system()=='Windows':
-	si = subprocess.STARTUPINFO()
-	si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+	status_info = subprocess.STARTUPINFO()
+	status_info.dwFlags |= subprocess.STARTF_USESHOWWINDOW
 
 class AACencException(Exception):
 	pass
@@ -17,14 +17,14 @@ class AACencException(Exception):
 qaac=0
 try:
 	if system()=='Windows':
-		qaac=subprocess.call(['qaac', '--check'], startupinfo=si)
+		qaac=subprocess.call(['qaac', '--check'], startupinfo=status_info)
 	else:
 		qaac=subprocess.call(['qaac', '--check'])
 except FileNotFoundError:
 	qaac=1
 try:
 	if system()=='Windows':
-		subprocess.call(['fdkaac', '--help'], startupinfo=si)
+		subprocess.call(['fdkaac', '--help'], startupinfo=status_info)
 	else:
 		subprocess.call(['fdkaac', '--help'])
 except FileNotFoundError:

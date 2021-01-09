@@ -5,11 +5,11 @@ import subprocess, os, json, platform, exceptions
 from platform import system
 
 if system()=="Windows":
-	si = subprocess.STARTUPINFO()
-	si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+	status_info = subprocess.STARTUPINFO()
+	status_info.dwFlags |= subprocess.STARTF_USESHOWWINDOW
 
 def getOutput(commandline):
-	global si
+	global status_info
 	if system()=="Windows":
 		try:
 			return subprocess.check_output(commandline, startupinfo=si)

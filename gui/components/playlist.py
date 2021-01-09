@@ -13,8 +13,8 @@ import subprocess
 from platform import system
 
 if system()=='Windows':
-	si = subprocess.STARTUPINFO()
-	si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+	status_info = subprocess.STARTUPINFO()
+	status_info.dwFlags |= subprocess.STARTF_USESHOWWINDOW
 
 curdir=os.path.dirname(sys.argv[0])
 
@@ -115,7 +115,7 @@ class AlbumGroup(FrameWrappedWidget):
         ]
         if system()=='Windows':
             process = subprocess.Popen(
-                commandline, stdin=subprocess.PIPE, stdout=subprocess.PIPE, startupinfo=si
+                commandline, stdin=subprocess.PIPE, stdout=subprocess.PIPE, startupinfo=status_info
             )
         else:
             process = subprocess.Popen(commandline, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
