@@ -355,7 +355,7 @@ def serizlize_playlist_file(filename, playlist:Playlist, gui):
 	json_data = zlib.compress(playlist.serialize(dirname=dirname).encode("utf-8"))
 	outfile.write_chunk(json_data)
 	del json_data
-	cover_thumbnails = gui.playlist_getCoverThumbnails()
+	cover_thumbnails = gui.playlist__get_cover_thumbnails()
 	webp_support = True
 	for thumbnail in cover_thumbnails:
 		img = None
@@ -407,5 +407,5 @@ def deserizlize_playlist_file(filename, gui):
 	while not file.EOF():
 		thumbnails.append(file.read_chunk())
 	file.close()
-	gui.setPlaylist(DeserialisedPlaylist(data=json_data, dirname=os.path.dirname(filename)),
-					cover_thumbnails=thumbnails)
+	gui.set_playlist(DeserialisedPlaylist(data=json_data, dirname=os.path.dirname(filename)),
+					 cover_thumbnails=thumbnails)

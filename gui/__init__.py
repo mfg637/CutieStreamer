@@ -4,3 +4,5 @@
 from . import components
 
 from . import dialogues
+
+from . import strings

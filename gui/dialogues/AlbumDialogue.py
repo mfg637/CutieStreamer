@@ -39,7 +39,7 @@ class AlbumDialogue:
 				return None
 		else:
 			disc=None
-		self._my_parrent.setAlbumTags(
+		self._my_parrent.set_album_tags(
 			self._tracks,
 			self._album_artist_field.get(),
 			self._album_field.get(),
@@ -48,7 +48,7 @@ class AlbumDialogue:
 		self.close()
 	def __convertAlbum(self):
 		self.close()
-		self._my_parrent.convertAlbum(self._tracks)
+		self._my_parrent.convert_album(self._tracks)
 	def close(self):
 		self._my_parrent.unfreeze()
 		self._root.destroy()

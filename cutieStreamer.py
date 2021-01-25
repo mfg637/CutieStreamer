@@ -5,6 +5,7 @@
 import sys, time, os
 from audiolib import tagIndexer
 from cutieStreamer import playlist, gui
+import logging
 
 if len(sys.argv)>1:
 	_playlist=[]
@@ -15,8 +16,11 @@ if len(sys.argv)>1:
 			if sys.argv[pointer][2:] == 'buf_len':
 				pointer += 1
 				playlist.buf_len = sys.argv[pointer]
+			elif sys.argv[pointer][2:] == 'log':
+				pointer += 1
+				logging.basicConfig(level=sys.argv[pointer])
 		elif os.path.isdir(sys.argv[pointer]):
-			_playlist+=tagIndexer.indexer(sys.argv[pointer])
+			_playlist += tagIndexer.indexer(sys.argv[pointer])
 		elif os.path.isfile(sys.argv[pointer]):
 			if sys.argv[pointer][-5:]=='.cspl':
 				_playlist = sys.argv[pointer]

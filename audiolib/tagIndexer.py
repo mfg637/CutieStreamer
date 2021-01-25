@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
 
-import ffmpeg, imglib, os, platform, re, exceptions
+import ffmpeg, imglib, os, platform, re, custom_exceptions
 from . import timecode, filesystem
 from pathlib import Path
 import PIL.Image
@@ -724,7 +724,7 @@ def m3u_indexer(filepath, unicode=False):
 		else:
 			file = open(filepath, 'r', encoding='windows-1251')
 	except UnicodeEncodeError:
-		raise exceptions.invalidFilename(filepath)
+		raise custom_exceptions.invalidFilename(filepath)
 	playlist=[]
 	f = file.read().splitlines()
 	for line in f:
