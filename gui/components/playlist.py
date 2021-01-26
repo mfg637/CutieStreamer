@@ -163,28 +163,35 @@ class PlaylistWidget(FrameWrappedWidget):
         self,
         tags,
         playlist_callback,
-        albumGroupCallback,
+        album_group_callback,
         track_offset,
         async_cover_loading=True,
         cover_thumbnails=None
     ):
-        album_artist=None
-        album=None
+        current_album_artist = None
+        current_album = None
         k = self._k
-        tracklist=Listbox(self._wrapper.interior)
+        tracklist = Listbox(self._wrapper.interior)
         albumGroupItem = None
         for tag in tags:
-            if tag.album()!=album or tag.album_artist()!=album_artist:
-                if cover_thumbnails is not None and tag.cover()!="":
-                    albumGroupItem = AlbumGroup(self._wrapper.interior, tag, albumGroupCallback,
-                        async_cover_loading, cover_thumbnails.pop(0))
+            if tag.album() != current_album or tag.album_artist() != current_album_artist:
+                if cover_thumbnails is not None and tag.cover() != "":
+                    albumGroupItem = AlbumGroup(
+                        self._wrapper.interior,
+                        tag, album_group_callback,
+                        async_cover_loading,
+                        cover_thumbnails.pop(0)
+                    )
                 else:
-                    albumGroupItem = AlbumGroup(self._wrapper.interior, tag, albumGroupCallback,
-                        async_cover_loading)
+                    albumGroupItem = AlbumGroup(
+                        self._wrapper.interior,
+                        tag, album_group_callback,
+                        async_cover_loading
+                    )
                 self._albumGroupList.append(albumGroupItem)
                 albumGroupItem.grid(row=k, column=0, sticky='w')
-                k+=1
-                tracklist=TrackListbox(
+                k += 1
+                tracklist = TrackListbox(
                     self._wrapper.interior,
                     playlist_callback,
                     self.__look_playlist,
@@ -193,9 +200,9 @@ class PlaylistWidget(FrameWrappedWidget):
                 )
                 tracklist.grid(row=k, column=0)
                 self._playlistbox_items.append(tracklist)
-                k+=1
-                album=tag.album()
-                album_artist=tag.album_artist()
+                k += 1
+                current_album = tag.album()
+                current_album_artist = tag.album_artist()
             else:
                 albumGroupItem.append_track(tag)
             if tag.disc() is not None:
@@ -203,7 +210,7 @@ class PlaylistWidget(FrameWrappedWidget):
             else:
                 track_repr = ''
             track_repr += "{} {}".format(tag.track(), tag.title())
-            if (tag.getArtist() is not None) and (tag.getArtist()!=album_artist):
+            if (tag.getArtist() is not None) and (tag.getArtist()!=current_album_artist):
                 track_repr += " - {}".format(tag.getArtist())
             track_repr += " [{}]".format(timecode.encode(int(round(tag.duration()))))
             tracklist.insert(END, track_repr)

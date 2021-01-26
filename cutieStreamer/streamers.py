@@ -2,10 +2,13 @@
 # -*- coding: utf-8 -*-
 # streamers.py by mfg637
 
+import logging
 import subprocess
 from platform import system
 from abc import ABCMeta, abstractmethod
 from .playlist import GainModeEnum
+
+logger = logging.getLogger(__name__)
 
 if system() == 'Windows':
 	status_info = subprocess.STARTUPINFO()
@@ -62,6 +65,7 @@ class FFmpeg(Streamer):
 			'-',
 			'-loglevel', 'quiet',
 			'-hide_banner']
+		logger.debug("ffmpeg commandline: %s", commandline)
 		if system() == 'Windows':
 			try:
 				self._streamer = subprocess.Popen(commandline, stdout=subprocess.PIPE, startupinfo=status_info)
@@ -80,6 +84,7 @@ class OpusDecoder(Streamer):
 		if gain == GainModeEnum.REPLAY_GAIN:
 			commandline += ["--gain", "5 dB"]
 		commandline += [file, '-']
+		logger.debug("opusdec commandline: %s", commandline)
 		if system() == 'Windows':
 			try:
 				self._streamer = subprocess.Popen(

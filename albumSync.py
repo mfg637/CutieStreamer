@@ -82,7 +82,7 @@ def indexSongs(i):
 		if 'album artist' in custom_tags[i]:
 			song.setAlbumArtist(custom_tags[i]['album artist'])
 		if 'disc' in custom_tags[i]:
-			song.setDisc(custom_tags[i]['disc'])
+			song.set_disc(custom_tags[i]['disc'])
 	return songs
 
 scanpool = Pool()

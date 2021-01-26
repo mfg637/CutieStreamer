@@ -48,10 +48,10 @@ else:
 		if song.codec() not in set(["mp3", "aac"]) or (song.bitrate()>=310):
 			avconv=subprocess.Popen(commandline, stdout=subprocess.PIPE)
 			buffer=avconv.stdout.read(1024)
-			AACenc=aacenc.AACenc(buffer, name+'.m4a', title=song.getTitle(),
-								 artist=song.getArtist(), albumArtist=song.getAlbumArtist(),
-								 genre=song.genre(), date=song.date(), track=song.getTrack(),
-								 disk=song.disc(), album=song.getAlbum())
+			AACenc=aacenc.AACenc(buffer, name +'.m4a', title=song.getTitle(),
+                                 artist=song.getArtist(), albumArtist=song.getAlbumArtist(),
+                                 genre=song.genre(), date=song.date(), track=song.getTrack(),
+                                 disk=song.disc(), album=song.getAlbum())
 			buffer=avconv.stdout.read(1024)
 			while len(buffer):
 				AACenc.write(buffer)

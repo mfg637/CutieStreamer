@@ -2,11 +2,19 @@
 # -*- coding: utf-8 -*-
 #player.py by mfg637
 
-import sounddevice, struct, threading, math
+import logging
 from abc import ABCMeta, abstractmethod
+
+import math
+import sounddevice
+import struct
+import threading
+
+from audiolib import timecode
 from . import playlist, streamers
 from .playlist import GainModeEnum
-from audiolib import timecode
+
+logger = logging.getLogger(__name__)
 
 
 class Player():
@@ -88,6 +96,7 @@ class Player():
 		return self._buffer.pop(0)
 
 	def open_wave_stream(self, file, format, acodec, gain_mode: GainModeEnum, *, offset=None, duration=None):
+		logger.info("Gain mode = %s", gain_mode)
 		if format == 'ogg' and acodec == 'opus':
 			if offset is None:
 				self._streamer = streamers.OpusDecoder(file, self._samplerate, offset=offset, gain=gain_mode)

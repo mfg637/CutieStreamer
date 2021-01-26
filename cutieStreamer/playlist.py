@@ -325,7 +325,7 @@ class Playlist:
 			self.tags[start_pos].setAlbumArtist(new_album_artist)
 			self.tags[start_pos].setAlbum(new_album)
 			if disc is not None:
-				self.tags[start_pos].setDisc(disc)
+				self.tags[start_pos].set_disc(disc)
 
 	def get_playlist_len(self):
 		return self._playlist_len
