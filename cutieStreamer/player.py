@@ -12,7 +12,7 @@ import threading
 
 from audiolib import timecode
 from . import playlist, streamers
-from .playlist import GainModeEnum
+from audiolib.enums import GainModeEnum
 
 logger = logging.getLogger(__name__)
 
@@ -95,21 +95,34 @@ class Player():
 			self.load_buff()
 		return self._buffer.pop(0)
 
-	def open_wave_stream(self, file, format, acodec, gain_mode: GainModeEnum, *, offset=None, duration=None):
+	def open_wave_stream(self, file, format, acodec, gain_mode: GainModeEnum, gains, *, offset=None, duration=None):
+
 		logger.info("Gain mode = %s", gain_mode)
+		logger.debug("gains = %s", gains)
 		if format == 'ogg' and acodec == 'opus':
 			if offset is None:
-				self._streamer = streamers.OpusDecoder(file, self._samplerate, offset=offset, gain=gain_mode)
+				self._streamer = streamers.OpusDecoder(
+					file,
+					self._samplerate,
+					offset=offset,
+					gain=gains[gain_mode]
+				)
 			else:
 				self._streamer = streamers.FFmpeg(
 					file,
 					self._samplerate,
 					offset=offset,
 					duration=duration,
-					gain="5dB" if gain_mode == GainModeEnum.REPLAY_GAIN else GainModeEnum.NONE
+					gain=gains[gain_mode]
 				)
 		else:
-			self._streamer = streamers.FFmpeg(file, self._samplerate, offset=offset, duration=duration, gain=gain_mode)
+			self._streamer = streamers.FFmpeg(
+				file,
+				self._samplerate,
+				offset=offset,
+				duration=duration,
+				gain=gains[gain_mode]
+			)
 
 	@abstractmethod
 	def load_buff(self):

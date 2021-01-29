@@ -4,17 +4,23 @@
 
 import io
 import json
+import logging
 import os
 import subprocess
 import sys
 import zlib
 from platform import system
 import enum
+import gui
 
+import r128gain
 from PIL import Image
 
+from audiolib.enums import GainModeEnum
 from audiolib.tagIndexer import MusicFile, CUEindexer, DeserializeMusicTrack, m3u_indexer
 from . import player, playlist_file_format
+
+logger = logging.getLogger(__name__)
 
 if system() == 'Windows':
 	status_info = subprocess.STARTUPINFO()
@@ -29,11 +35,6 @@ class EndOfPlaylistException(Exception):
 class PlaybackModeEnum(enum.Enum):
 	GAPLESS = enum.auto()
 	CROSSFADE = enum.auto()
-
-
-class GainModeEnum(enum.Enum):
-	NONE = 0
-	REPLAY_GAIN = 1
 
 
 buf_len = None
@@ -215,6 +216,7 @@ class Playlist:
 			self.tags[item].container(),
 			self.tags[item].codec(),
 			gain_mode=self._gain_mode,
+			gains=self.tags[item].get_gains(),
 			offset=start_position if has_offset else None,
 			duration=duration if has_offset_and_duration or not has_offset else None
 		)
@@ -278,6 +280,7 @@ class Playlist:
 			offset=start_position if start_position > 0 else None,
 			duration=duration,
 			gain_mode=self._gain_mode,
+			gains=self.tags[current_track].get_gains(),
 			acodec=self.tags[current_track].codec(),
 			format=self.tags[current_track].container()
 		)
@@ -330,6 +333,50 @@ class Playlist:
 	def get_playlist_len(self):
 		return self._playlist_len
 
+	def r128_playlist_scan(self, callback:gui.dialogues.LoadingBanner):
+		if callback is not None:
+			callback.set_window_title("R128 GAIN SCAN")
+			callback.set_length(self._playlist_len)
+			logger.debug("playlist lenght %s", self._playlist_len)
+		albums = dict()
+		ungrouped_tracks = list()
+		for tag in self.tags:
+			if tag.album() is not None:
+				album_hash = hash(tag.album()+tag.album_artist())
+				if album_hash not in albums:
+					albums[album_hash] = list()
+				albums[album_hash].append(tag)
+			else:
+				ungrouped_tracks.append(tag.filename())
+		logger.debug("albums: %s", albums)
+		logger.debug("tracks: %s", ungrouped_tracks)
+		for album in albums:
+			file_list = list()
+			for track in albums[album]:
+				fname = track.filename()
+				if fname not in file_list:
+					file_list.append(fname)
+			logger.debug("input_files: %s", file_list)
+			scan_results = r128gain.scan(file_list, album_gain=True)
+			logger.debug("scan results: %s", scan_results)
+			for track in albums[album]:
+				track.set_r128_track_gain(scan_results[track.filename()][0])
+				track.set_r128_album_gain(scan_results[0][0])
+			if callback is not None:
+				value = len(albums[album]) + callback.get_value()
+				logger.debug("callback value set = %s", value)
+				callback.set_value(value)
+		logger.debug("input_files: %s", ungrouped_tracks)
+		scan_results = r128gain.scan(ungrouped_tracks, album_gain=False)
+		logger.debug("scan results: %s", scan_results)
+		for track in ungrouped_tracks:
+			track.set_r128_track_gain(scan_results[track.filename()][0])
+		value = len(ungrouped_tracks) + callback.get_value()
+		logger.debug("callback increment: %s", value)
+		callback.set_value(value)
+		logger.info("Gain scan done")
+
+
 class DeserialisedPlaylist(Playlist):
 	def __init__(self, filename=None, data=None, dirname=None):
 		serialisableData = None
@@ -341,13 +388,15 @@ class DeserialisedPlaylist(Playlist):
 		elif data is not None:
 			serialisableData = json.loads(data)
 		self.tags=[DeserializeMusicTrack(i, dirname) for i in serialisableData]
-		self._myplayer=None
-		self._start_offset=0
-		self._timestamp=[]
-		self._tracknumber = 0
+		self._my_player = None
+		self._start_offset = 0
+		self._timestamp = []
+		self._track_number = 0
 		self.fading_duration = 10
 		self.playback_mode = PlaybackModeEnum.GAPLESS
-		self._gui=None
+		self._gui = None
+		self._gain_mode = GainModeEnum.NONE
+		self._playlist_len = len(self.tags)
 
 def serizlize_playlist_file(filename, playlist:Playlist, gui):
 	outfile = playlist_file_format.PlaylistWriter(filename)

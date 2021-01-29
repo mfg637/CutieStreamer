@@ -7,7 +7,8 @@ from tkinter import Tk, PhotoImage, Menu, DISABLED, Frame, Label, HORIZONTAL, NO
 from tkinter import ttk, filedialog, messagebox
 from audiolib import tagIndexer
 from . import playlist
-from .playlist import GainModeEnum, PlaybackModeEnum
+from .playlist import PlaybackModeEnum
+from audiolib.enums import GainModeEnum
 from PIL import Image, ImageTk
 from platform import system
 
@@ -154,6 +155,11 @@ class GUI:
             label="Save playlist",
             command=self.__save_playlist, state=DISABLED
         )
+        self._playlist_menu.add_separator()
+        self._playlist_menu.add_command(
+            label="Gain scan",
+            command=self._gain_scan
+        )
         self._menubar.add_cascade(label="Playlist", menu=self._playlist_menu)
 
         self._gain_menu = Menu(self._menubar, tearoff=0)
@@ -165,9 +171,27 @@ class GUI:
         )
         self._gain_menu.add_separator()
         self._gain_menu.add_checkbutton(
-            label="Replay Gain",
-            command=self.set_replay_gain,
-            onvalue=GainModeEnum.REPLAY_GAIN.value,
+            label="Replay Gain Album",
+            command=self.set_replay_gain_album,
+            onvalue=GainModeEnum.REPLAY_GAIN_ALBUM.value,
+            variable=self.gain_mode.value
+        )
+        self._gain_menu.add_checkbutton(
+            label="Replay Gain Track",
+            command=self.set_replay_gain_track,
+            onvalue=GainModeEnum.REPLAY_GAIN_TRACK.value,
+            variable=self.gain_mode.value
+        )
+        self._gain_menu.add_checkbutton(
+            label="EBU R128 Gain Album",
+            command=self.set_r128_gain_album,
+            onvalue=GainModeEnum.R128_GAIN_ALBUM.value,
+            variable=self.gain_mode.value
+        )
+        self._gain_menu.add_checkbutton(
+            label="EBU R128 Gain Track",
+            command=self.set_r128_gain_track,
+            onvalue=GainModeEnum.R128_GAIN_TRACK.value,
             variable=self.gain_mode.value
         )
         self._menubar.add_cascade(label="Gain", menu=self._gain_menu)
@@ -357,6 +381,7 @@ class GUI:
                 self._playlist = playlist.Playlist(filelist, progressbar=self.loading_banner.progressbar)
                 self._playlist.set_gui(self)
                 self._playlist.playback_mode = self.playback_mode
+                self._playlist.change_gain_mode(self.gain_mode)
                 self.__unlock_playback_controls()
                 self._playlist_box.playlist_initiation(
                     self._playlist.tags, self.select_item, self.open_album_dialogue
@@ -448,6 +473,7 @@ class GUI:
                 )
                 self._playlist.set_gui(self)
                 self._playlist.playback_mode = self.playback_mode
+                self._playlist.change_gain_mode(self.gain_mode)
             except tagIndexer.CUEparserError as e:
                 messagebox.showerror(
                     gui.strings.CUE_INDEXER,
@@ -542,9 +568,21 @@ class GUI:
         logger.info("disabling gain")
         self._set_mode(self._set_gain_mode, (GainModeEnum.NONE,))
 
-    def set_replay_gain(self):
-        logger.info("activation {} mode".format(GainModeEnum.REPLAY_GAIN.name.lower()))
-        self._set_mode(self._set_gain_mode, (GainModeEnum.REPLAY_GAIN,))
+    def set_replay_gain_album(self):
+        logger.info("activation {} mode".format(GainModeEnum.REPLAY_GAIN_ALBUM.name.lower()))
+        self._set_mode(self._set_gain_mode, (GainModeEnum.REPLAY_GAIN_ALBUM,))
+
+    def set_replay_gain_track(self):
+        logger.info("activation {} mode".format(GainModeEnum.REPLAY_GAIN_TRACK.name.lower()))
+        self._set_mode(self._set_gain_mode, (GainModeEnum.REPLAY_GAIN_TRACK,))
+
+    def set_r128_gain_album(self):
+        logger.info("activation {} mode".format(GainModeEnum.R128_GAIN_ALBUM.name.lower()))
+        self._set_mode(self._set_gain_mode, (GainModeEnum.R128_GAIN_ALBUM,))
+
+    def set_r128_gain_track(self):
+        logger.info("activation {} mode".format(GainModeEnum.R128_GAIN_TRACK.name.lower()))
+        self._set_mode(self._set_gain_mode, (GainModeEnum.R128_GAIN_TRACK,))
 
     def __lock_prev_next_buttons(self):
         self._prev_btn.disable()
@@ -591,6 +629,7 @@ class GUI:
         self._playlist = _playlist
         self._playlist.set_gui(self)
         self._playlist.playback_mode = self.playback_mode
+        self._playlist.change_gain_mode(self.gain_mode)
         self.__unlock_playback_controls()
         self._playlist_box.playlist_initiation(
             self._playlist.tags,
@@ -625,6 +664,7 @@ class GUI:
                 self._playlist = playlist.DeserialisedPlaylist(filename)
                 self._playlist.set_gui(self)
                 self._playlist.playback_mode = self.playback_mode
+                self._playlist.change_gain_mode(self.gain_mode)
                 self.__unlock_playback_controls()
                 self._playlist_box.playlist_initiation(
                     self._playlist.tags, self.select_item, self.open_album_dialogue
@@ -751,3 +791,16 @@ class GUI:
                 self.__next_track_change()
             elif key == pynput.keyboard.KeyCode(vk=STOP_MEDIA_KEY_CODE):
                 self._stop()
+
+    def _gain_scan(self):
+        self._stop()
+        self.freeze()
+        self.loading_banner = gui.dialogues.LoadingBanner(
+            self._root,
+            self._loading_banner_img,
+            False
+        )
+        self.loading_banner.root.update()
+        self._playlist.r128_playlist_scan(self.loading_banner)
+        self.loading_banner.close()
+        self.unfreeze()

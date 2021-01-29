@@ -2,8 +2,9 @@
 # -*- coding: utf-8 -*-
 import logging
 
-import ffmpeg, imglib, os, platform, re, custom_exceptions
+import ffmpeg_prober, imglib, os, platform, re, custom_exceptions
 from . import timecode, filesystem
+from .enums import GainModeEnum
 from pathlib import Path
 import PIL.Image
 import io
@@ -16,6 +17,9 @@ cover = re.compile(r"(.*[^\w]|^)[Cc][Oo][Vv][Ee][Rr]([\W\s].*|$)")
 covers_word = re.compile(r"(.*[\W\s]|^)[Cc][Oo][Vv][Ee][Rr][Ss]([\W\s].*|$)")
 scans_word = re.compile(r"(.*[\W\s]|^)[Ss][Cc][Aa][Nn][Ss]([\W\s].*|$)")
 num = re.compile(r"\d+")
+
+EBU_R128_GAIN_LEVEL = -23
+REPLAY_GAIN_LEVEL = -18
 
 
 class CUEparserError(Exception):
@@ -75,7 +79,6 @@ class MusicTrack:
 		self._isChapter = isChapter
 		self._r128_track_gain = None
 		self._r128_album_gain = None
-		self._peak_level = None
 
 	def __getItem(self, FF_num):
 		if type(FF_num) is str:
@@ -261,7 +264,9 @@ class MusicTrack:
 				'iTunSMPB': self._iTunSMPB, 'filename': filename,
 				'cover': cover, 'isChapter': self._isChapter,
 				'embeded cover': self._embeded_cover, 'sample rate': self._sample_rate,
-				'container': self._f, 'cover track index': self._cover_track_num}
+				'container': self._f, 'cover track index': self._cover_track_num,
+				'r128_track_gain': self._r128_track_gain,
+				'r128_album_gain': self._r128_album_gain}
 
 	def getRawCover(self):
 		return None
@@ -291,7 +296,7 @@ class MusicTrack:
 	def get_front_cover_image(self, size:tuple, force=False):
 		if self._embeded_cover:
 			imgBuffer = io.BytesIO(
-				ffmpeg.getPPM_Image(
+				ffmpeg_prober.getPPM_Image(
 					self._filename,
 					size='{}x{}'.format(*size),
 					force=force,
@@ -316,6 +321,62 @@ class MusicTrack:
 		else:
 			return None
 
+	def set_r128_track_gain(self, r128_track):
+		self._r128_track_gain = r128_track
+
+	def get_r128_track_level(self):
+		return self._r128_track_gain
+
+	def get_replay_gain_track_level(self):
+		if self._r128_track_gain is not None:
+			return self._r128_track_gain + 5
+
+	def _gain(self, current_level, target_level):
+		return target_level - current_level
+
+	def r128_track_gain(self):
+		target_volume_dbFS = EBU_R128_GAIN_LEVEL
+		if self._r128_track_gain is not None:
+			return self._gain(self._r128_track_gain, target_volume_dbFS)
+
+	def replay_gain_track(self):
+		target_volume_dbFS = REPLAY_GAIN_LEVEL
+		if self._r128_track_gain is not None:
+			return self._gain(self._r128_track_gain, target_volume_dbFS)
+
+	def set_r128_album_gain(self, r128_album):
+		self._r128_album_gain = r128_album
+
+	def get_r128_album_gain(self):
+		return self._r128_album_gain
+
+	def get_replay_gain_album(self):
+		if self._r128_album_gain is not None:
+			return self._r128_album_gain + 5
+
+	def r128_album_gain(self):
+		target_volume_dbFS = EBU_R128_GAIN_LEVEL
+		if self._r128_album_gain is not None:
+			return self._gain(self._r128_album_gain, target_volume_dbFS)
+		else:
+			return self.r128_track_gain()
+
+	def replay_gain_album(self):
+		target_volume_dbFS = REPLAY_GAIN_LEVEL
+		if self._r128_album_gain is not None:
+			return self._gain(self._r128_album_gain, target_volume_dbFS)
+		else:
+			return self.replay_gain_track()
+
+	def get_gains(self):
+		return {
+			GainModeEnum.NONE: None,
+			GainModeEnum.R128_GAIN_ALBUM: self.r128_album_gain(),
+			GainModeEnum.R128_GAIN_TRACK: self.r128_track_gain(),
+			GainModeEnum.REPLAY_GAIN_ALBUM: self.replay_gain_album(),
+			GainModeEnum.REPLAY_GAIN_TRACK: self.replay_gain_track()
+		}
+
 
 class DeserializeMusicTrack(MusicTrack):
 	def __init__(self, data:dict, playlist_dir):
@@ -328,6 +389,8 @@ class DeserializeMusicTrack(MusicTrack):
 		self._channels = data['channels']
 		self._chandesk = data['chandesk']
 		self._iTunSMPB = data['iTunSMPB']
+		self._r128_track_gain = data['r128_track_gain']
+		self._r128_album_gain = data['r128_album_gain']
 		filename = os.path.normpath(os.path.join(playlist_dir, data['filename']))
 		if platform.system() == 'Windows':
 			self._filename = re.sub('/', r'\\', filename)
@@ -388,7 +451,7 @@ class MusicFile(RawCoverContainMusicTrack):
 		self._tags = {}
 		self._cover_track_num = None
 		self._start = 0
-		f = ffmpeg.probe(filename)
+		f = ffmpeg_prober.probe(filename)
 		self._fbitrate = int(f['format']["bit_rate"])/1000
 		self._f = f['format']["format_name"]
 		self._filename = os.path.realpath(filename)
@@ -440,7 +503,7 @@ class MusicFile(RawCoverContainMusicTrack):
 		else:
 			self._cover = frontPicker(os.path.dirname(filename))
 		if  bool(video):
-			self._raw_cover = ffmpeg.getPPM_Image(filename, index=self._cover_track_num)
+			self._raw_cover = ffmpeg_prober.getPPM_Image(filename, index=self._cover_track_num)
 			self._cover = hash(self._raw_cover)
 		else:
 			self._raw_cover = None
@@ -499,6 +562,19 @@ class MusicFile(RawCoverContainMusicTrack):
 						**tags
 					)
 				)
+		self._r128_track_gain = None
+		self._r128_album_gain = None
+		if 'r128_track_gain' in self._tags:
+			self._r128_album_gain = self._r128_track_gain = \
+				EBU_R128_GAIN_LEVEL - int(self._tags['r128_track_gain']) * (2 ** -8)
+		elif 'replaygain_track_gain' in self._tags:
+			self._r128_album_gain = self._r128_track_gain = \
+				REPLAY_GAIN_LEVEL - float(self._tags['replaygain_track_gain'].split(' ')[0])
+		if 'r128_album_gain' in self._tags:
+			self._r128_album_gain = EBU_R128_GAIN_LEVEL - int(self._tags['r128_album_gain']) * (2 ** -8)
+		elif 'replaygain_album_gain' in self._tags:
+			self._r128_album_gain = \
+				REPLAY_GAIN_LEVEL - float(self._tags['replaygain_album_gain'].split(' ')[0])
 
 	def print_metadata(self):
 		print(self._filename)
@@ -517,7 +593,7 @@ class CUEindex(RawCoverContainMusicTrack):
 		self._iTunSMPB = False
 		self._cover_track_num = None
 		filename = os.path.join(directory, current_track['file'])
-		f = ffmpeg.probe(filename)
+		f = ffmpeg_prober.probe(filename)
 		self._f = f['format']["format_name"]
 		self._tags = {'album': album, 'album_artist': album_artist}
 		self._tags.update(current_track)
@@ -544,7 +620,7 @@ class CUEindex(RawCoverContainMusicTrack):
 					((not video) or stream['tags']['comment']=="Cover (front)"):
 				self._embeded_cover = True
 				self._cover_track_num = stream["index"]
-				self._raw_cover=ffmpeg.getPPM_Image(filename, index=self._cover_track_num)
+				self._raw_cover=ffmpeg_prober.getPPM_Image(filename, index=self._cover_track_num)
 				self._cover = hash(self._raw_cover)
 		self._codec = audio["codec_name"]
 		self._cdesk = audio["codec_long_name"]
@@ -562,6 +638,8 @@ class CUEindex(RawCoverContainMusicTrack):
 		self._chandesk = audio["channel_layout"]
 		self._filename = filename
 		self._chapters = []
+		self._r128_track_gain = None
+		self._r128_album_gain = None
 
 
 def CUEindexer(CUEfile):
@@ -619,10 +697,10 @@ def CUEindexer(CUEfile):
 		raise CUEDecodeError(CUEfile)
 	for i in range(len(tracks)):
 		duration = None
-		if tracks[i]['']:
+		if tracks[i]['duration'] is not None:
 			duration = tracks[i]['duration'] - tracks[i]['index']
 		elif bool(i < last_track_id) and (tracks[i]['file'] == tracks[i + 1]['file']):
-			duration = tracks[i + 1]['index'] - tracks[i]['file']['index']
+			duration = tracks[i + 1]['index'] - tracks[i]['index']
 		tracks[i].pop('duration')
 		index.append(CUEindex(album, album_artist, genre, date, directory, tracks[i], duration))
 	return index

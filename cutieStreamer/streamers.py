@@ -6,7 +6,7 @@ import logging
 import subprocess
 from platform import system
 from abc import ABCMeta, abstractmethod
-from .playlist import GainModeEnum
+from audiolib.enums import GainModeEnum
 
 logger = logging.getLogger(__name__)
 
@@ -51,12 +51,8 @@ class FFmpeg(Streamer):
 		commandline += [
 			'-i', file,
 			'-vn']
-		if gain != GainModeEnum.NONE:
-			commandline += ["-af"]
-			if gain == GainModeEnum.REPLAY_GAIN:
-				commandline += ["volume=replaygain=album"]
-			else:
-				commandline += ["volume={}".format(gain)]
+		if gain is not None and gain != 0:
+			commandline += ["-af", "volume={}dB".format(gain)]
 		commandline += [
 			'-acodec', 'pcm_f32le',
 			'-ac', '2',
@@ -81,8 +77,8 @@ class OpusDecoder(Streamer):
 		global status_info
 		self._open = True
 		commandline = ['opusdec', '--float', '--rate', str(samplerate)]
-		if gain == GainModeEnum.REPLAY_GAIN:
-			commandline += ["--gain", "5 dB"]
+		if gain is not None and gain != 0:
+			commandline += ["--gain", "{} dB".format(gain)]
 		commandline += [file, '-']
 		logger.debug("opusdec commandline: %s", commandline)
 		if system() == 'Windows':

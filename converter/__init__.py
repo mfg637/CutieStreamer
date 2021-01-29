@@ -4,7 +4,7 @@
 from pathlib import Path
 import subprocess, os, re
 from imglib import resample
-import ffmpeg
+import ffmpeg_prober
 import converter.exceptions
 
 try:
@@ -71,7 +71,7 @@ else:
 				if not os.path.exists(os.path.join(outdir, aldir)):
 					os.mkdir(os.path.join(outdir, aldir))
 				if song.hasEmbededCover():
-					streamer=ffmpeg.getPPM_Stream(song.filename())
+					streamer=ffmpeg_prober.getPPM_Stream(song.filename())
 					resample(streamer.stdout, os.path.join(outdir, aldir, 'folder.jpg'), max=200)
 				elif len(song.cover()):
 					resample(song.cover(),

@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 #Playlist GUI by mfg637
 
-import os, sys, ffmpeg, threading, io
+import os, sys, ffmpeg_prober, threading, io
 from tkinter import PhotoImage, Frame, Label, Frame, Listbox, END, Widget
 from tkinter import ttk, filedialog, messagebox
 from PIL import Image, ImageTk
@@ -175,7 +175,7 @@ class PlaylistWidget(FrameWrappedWidget):
         albumGroupItem = None
         for tag in tags:
             if tag.album() != current_album or tag.album_artist() != current_album_artist:
-                if cover_thumbnails is not None and tag.cover() != "":
+                if cover_thumbnails is not None and len(cover_thumbnails) and tag.cover() != "":
                     albumGroupItem = AlbumGroup(
                         self._wrapper.interior,
                         tag, album_group_callback,
@@ -224,7 +224,7 @@ class PlaylistWidget(FrameWrappedWidget):
         for widget in self._wrapper.interior.winfo_children():
             widget.destroy()
         self._wrapper.canvas.yview_moveto(0)
-        track_offset=0
+        track_offset = 0
         self._k = 0
         self.__add_tracks(
             tags,

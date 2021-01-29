@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 #exebutable script file writed by mfg637
 
-import sys, subprocess, os, shutil, platform, re, time, ffmpeg
+import sys, subprocess, os, shutil, platform, re, time, ffmpeg_prober
 #from audiolib import tagIndexer, formatNum
 from audiolib.tagIndexer import MusicFile, indexer
 import converter
@@ -102,7 +102,7 @@ for song in srcindex:
 		if not os.path.exists(os.path.join(converter.outdir, aldir)):
 			os.mkdir(os.path.join(converter.outdir, aldir))
 		if song.hasEmbededCover():
-			streamer=ffmpeg.getPPM_Stream(song.filename())
+			streamer=ffmpeg_prober.getPPM_Stream(song.filename())
 			resample(streamer.stdout, os.path.join(converter.outdir, aldir, 'folder.jpg'), max=200)
 		elif len(song.cover()):
 			resample(song.cover(),
