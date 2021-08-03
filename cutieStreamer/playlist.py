@@ -216,7 +216,7 @@ class Playlist:
 			self.tags[item].container(),
 			self.tags[item].codec(),
 			gain_mode=self._gain_mode,
-			gains=self.tags[item].get_gains(),
+			gains=self.tags[item].get_gain_levels(),
 			offset=start_position if has_offset else None,
 			duration=duration if has_offset_and_duration or not has_offset else None
 		)
@@ -280,7 +280,7 @@ class Playlist:
 			offset=start_position if start_position > 0 else None,
 			duration=duration,
 			gain_mode=self._gain_mode,
-			gains=self.tags[current_track].get_gains(),
+			gains=self.tags[current_track].get_gain_levels(),
 			acodec=self.tags[current_track].codec(),
 			format=self.tags[current_track].container()
 		)

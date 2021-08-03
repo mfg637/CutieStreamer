@@ -5,6 +5,8 @@
 
 from tkinter import Tk, PhotoImage, Menu, DISABLED, Frame, Label, HORIZONTAL, NORMAL
 from tkinter import ttk, filedialog, messagebox
+
+import customExceptions.audiolib__tagIndexer
 from audiolib import tagIndexer
 from . import playlist
 from .playlist import PlaybackModeEnum
@@ -386,7 +388,7 @@ class GUI:
                 self._playlist_box.playlist_initiation(
                     self._playlist.tags, self.select_item, self.open_album_dialogue
                 )
-            except tagIndexer.CUEparserError as e:
+            except customExceptions.audiolib__tagIndexer.CUEparserError as e:
                 messagebox.showerror(
                     gui.strings.CUE_INDEXER,
                     gui.strings.ERROR_AT_LINE_NEWLINE + e.line + e.message
@@ -408,7 +410,7 @@ class GUI:
             self.loading_banner.progressbar['maximum'] = len(filelist)
             try:
                 self._playlist.add_files(filelist, progressbar=self.loading_banner.progressbar)
-            except tagIndexer.CUEparserError as e:
+            except customExceptions.audiolib__tagIndexer.CUEparserError as e:
                 messagebox.showerror(
                     gui.strings.CUE_INDEXER,
                     gui.strings.ERROR_AT_LINE_NEWLINE + e.line + e.message
@@ -437,7 +439,7 @@ class GUI:
                         progressbar=self.loading_banner.progressbar
                     )
                 )
-            except tagIndexer.CUEparserError as e:
+            except customExceptions.audiolib__tagIndexer.CUEparserError as e:
                 messagebox.showerror(
                     gui.strings.CUE_INDEXER,
                     gui.strings.ERROR_AT_LINE_NEWLINE + e.line + e.message
@@ -474,7 +476,7 @@ class GUI:
                 self._playlist.set_gui(self)
                 self._playlist.playback_mode = self.playback_mode
                 self._playlist.change_gain_mode(self.gain_mode)
-            except tagIndexer.CUEparserError as e:
+            except customExceptions.audiolib__tagIndexer.CUEparserError as e:
                 messagebox.showerror(
                     gui.strings.CUE_INDEXER,
                     gui.strings.ERROR_AT_LINE_NEWLINE + e.line + e.message

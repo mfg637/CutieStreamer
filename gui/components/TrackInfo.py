@@ -28,13 +28,14 @@ class TrackInfo(tkinter.Frame):
 		self._cover_img_raw = ''
 		self._cover_update_thread = threading.Thread(target=self.__cover_update, args=('',))
 
-	def update_track(self, tag):
-		self._track = tag
+	def update_track(self, track):
+		tag = track.get_tags_list()
+		self._track = track
 		self._title_label['text'] = tag.title()[:36]
 		self._artist_label['text'] = tag.artist()[:36]
 		self._album_label['text'] = tag.album()[:36]
 		if not self._cover_update_thread.is_alive():
-			self._cover_update_thread = threading.Thread(target=self.__cover_update, args=(tag,))
+			self._cover_update_thread = threading.Thread(target=self.__cover_update, args=(track,))
 			self._cover_update_thread.start()
 
 	def __cover_update(self, track):

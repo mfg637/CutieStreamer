@@ -4,6 +4,7 @@ from audiolib import timecode
 
 class TrackProperties:
 	def __init__(self, root, track, main_gui_obj):
+		tags = track.get_tags_list()
 		self._root = Toplevel(root)
 		main_gui_obj.freeze()
 		self._main_gui_obj=main_gui_obj
@@ -13,7 +14,7 @@ class TrackProperties:
 			'codec': track.codec(),
 			'bitrate': str(track.bitrate())+' kbps',
 			'sample rate': track.sample_rate(),
-			'encoder': track.encoder()
+			'encoder': tags.encoder()
 		}
 		i=1
 		Label(self._root, text='Propety: ').grid(row=0, column=0, sticky='e')
@@ -24,11 +25,11 @@ class TrackProperties:
 			e.insert(0, properies_list[property])
 			e.grid(row=i, column=1, sticky='w')
 			i+=1
-		tags=track.tags()
-		for tag in tags.keys():
+		taglist=tags.get_tags()
+		for tag in taglist.keys():
 			Label(self._root, text=tag+': ').grid(row=i, column=0, sticky='e')
 			e=ttk.Entry(self._root, width=100)
-			e.insert(0, tags[tag])
+			e.insert(0, taglist[tag])
 			e.grid(row=i, column=1, sticky='w')
 			i+=1
 		close_btn=ttk.Button(self._root, text="Ok", command=self.close)

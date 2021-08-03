@@ -88,8 +88,8 @@ class AlbumGroup(FrameWrappedWidget):
         self._wrapper = Frame(parent)
         self._cover_thumbnail=None
         self._cover_thumb_img = None
-        self._album = tag.album()
-        self._album_artist = tag.album_artist()
+        self._album = tag.get_tags_list().album()
+        self._album_artist = tag.get_tags_list().album_artist()
         self._callback=callback
         self._wrapper.bind("<Button-1>", self.__edit_tags)
         if tag.cover()!='':
@@ -101,10 +101,10 @@ class AlbumGroup(FrameWrappedWidget):
                 thread.start()
             else:
                 self.__createCoverThumbnail(tag, cover_thumbnail)
-        album_label = Label(self._wrapper, text=tag.album()[:44])
+        album_label = Label(self._wrapper, text=tag.get_tags_list().album()[:44])
         album_label.grid(row=0, column=1, sticky='w')
         album_label.bind("<Button-1>", self.__edit_tags)
-        artist_label = Label(self._wrapper, text='by '+tag.album_artist()[:40])
+        artist_label = Label(self._wrapper, text='by '+tag.get_tags_list().album_artist()[:40])
         artist_label.grid(row=1, column=1, sticky='w')
         artist_label.bind("<Button-1>", self.__edit_tags)
 
@@ -161,7 +161,7 @@ class PlaylistWidget(FrameWrappedWidget):
 
     def __add_tracks(
         self,
-        tags,
+        tracks,
         playlist_callback,
         album_group_callback,
         track_offset,
@@ -173,19 +173,21 @@ class PlaylistWidget(FrameWrappedWidget):
         k = self._k
         tracklist = Listbox(self._wrapper.interior)
         albumGroupItem = None
-        for tag in tags:
-            if tag.album() != current_album or tag.album_artist() != current_album_artist:
-                if cover_thumbnails is not None and len(cover_thumbnails) and tag.cover() != "":
+        for track in tracks:
+            tags = track.get_tags_list()
+            if tags.album() != current_album or \
+                    tags.album_artist() != current_album_artist:
+                if cover_thumbnails is not None and len(cover_thumbnails) and track.cover() != "":
                     albumGroupItem = AlbumGroup(
                         self._wrapper.interior,
-                        tag, album_group_callback,
+                        track, album_group_callback,
                         async_cover_loading,
                         cover_thumbnails.pop(0)
                     )
                 else:
                     albumGroupItem = AlbumGroup(
                         self._wrapper.interior,
-                        tag, album_group_callback,
+                        track, album_group_callback,
                         async_cover_loading
                     )
                 self._albumGroupList.append(albumGroupItem)
@@ -201,18 +203,18 @@ class PlaylistWidget(FrameWrappedWidget):
                 tracklist.grid(row=k, column=0)
                 self._playlistbox_items.append(tracklist)
                 k += 1
-                current_album = tag.album()
-                current_album_artist = tag.album_artist()
+                current_album = tags.album()
+                current_album_artist = tags.album_artist()
             else:
-                albumGroupItem.append_track(tag)
-            if tag.disc() is not None:
-                track_repr = tag.disc()
+                albumGroupItem.append_track(track)
+            if tags.disc() is not None:
+                track_repr = tags.disc()
             else:
                 track_repr = ''
-            track_repr += "{} {}".format(tag.track(), tag.title())
-            if (tag.getArtist() is not None) and (tag.getArtist()!=current_album_artist):
-                track_repr += " - {}".format(tag.getArtist())
-            track_repr += " [{}]".format(timecode.encode(int(round(tag.duration()))))
+            track_repr += "{} {}".format(tags.track(), tags.title())
+            if (tags.getArtist() is not None) and (tags.getArtist()!=current_album_artist):
+                track_repr += " - {}".format(tags.getArtist())
+            track_repr += " [{}]".format(timecode.encode(int(round(track.duration()))))
             tracklist.insert(END, track_repr)
             track_offset += 1
         self._k = k
