@@ -21,7 +21,7 @@ class MusicTrack:
 					filename=None, start=None,
 					duration=None, cover=None, sample_rate=None, cdesk=None,
 					chandesk=None, isChapter=False, format_name=None,
-					embeded_cover=False, cover_track_num=None, #**tags): DEPRECATED
+					raw_cover:bytes=None, cover_track_num=None, #**tags): DEPRECATED
 				 	tags:TagsList
 				 ):
 		self._sample_rate = sample_rate
@@ -35,7 +35,8 @@ class MusicTrack:
 		self._iTunSMPB = False
 		self._filename = filename
 		self._f = format_name
-		self._embeded_cover = embeded_cover
+		self._embeded_cover = True if raw_cover is not None else False
+		self._raw_cover = raw_cover
 		self._chapters = []
 		self._cover_track_num = cover_track_num
 		#
@@ -130,7 +131,7 @@ class MusicTrack:
 				'r128_album_gain': self._r128_album_gain}
 
 	def getRawCover(self):
-		return None
+		return self._raw_cover
 
 	def getCoverIndex(self):
 		return self._cover_track_num
@@ -141,7 +142,20 @@ class MusicTrack:
 				self._tags[key] = decodeTags(self._tags[key], 'cp1252', 'cp1251')
 
 	def get_front_cover_image(self, size:tuple, force=False):
-		if self._embeded_cover:
+		if self._embeded_cover and self._raw_cover is not None:
+			img = PIL.Image.open(io.BytesIO(self._raw_cover))
+			if force:
+				return img.resize(size, PIL.Image.LANCZOS)
+			else:
+				return img.resize(
+						imglib.resize(
+							img.size[0],
+							img.size[1],
+							width=size[0],
+							height=size[1]
+					), PIL.Image.LANCZOS
+				)
+		elif self._embeded_cover:
 			imgBuffer = io.BytesIO(
 				ffmpeg_prober.getPPM_Image(
 					self._filename,

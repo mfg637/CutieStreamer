@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 #included module writed by mfg637
 
-import os, platform
+import os, platform, pathlib
 
 def files(path):
 	listfile = []
@@ -10,6 +10,15 @@ def files(path):
 		if os.path.isfile(os.path.join(path, inode)):
 			listfile.append(os.path.join(path, inode))
 	return listfile
+
+
+def files_p(root:pathlib.Path)->list:
+	listfile = []
+	for file in root.iterdir():
+		if file.is_file():
+			listfile.append(root.joinpath(file))
+	return listfile
+
 
 def directories(path):
 	listdir = []

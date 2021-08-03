@@ -142,3 +142,8 @@ class TagsList:
 			return self._tags['encoder']
 		else:
 			return ''
+
+	def print_metadata(self):
+		for param in self._tag_param:
+			if param in self._tags:
+				print(param+": "+self._tags[param])

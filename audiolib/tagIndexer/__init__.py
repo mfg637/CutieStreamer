@@ -4,6 +4,7 @@
 
 import ffmpeg_prober, imglib, os, platform, re, custom_exceptions
 import logging
+import pathlib
 from customExceptions.audiolib__tagIndexer import CUEparserError, CUEDecodeError
 from .music_track import MusicTrack
 from .tags_list import TagsList
@@ -74,35 +75,7 @@ class DeserializeMusicTrack(MusicTrack):
 			self._cover_track_num = None
 
 
-class RawCoverContainMusicTrack(MusicTrack):
-	__metaclass__ = abc.ABCMeta
-
-	@abc.abstractmethod
-	def __init__(self):
-		pass
-
-	def getRawCover(self):
-		return self._raw_cover
-
-	def get_front_cover_image(self, size:tuple, force=False):
-		if self._embeded_cover and self._raw_cover is not None:
-			img = PIL.Image.open(io.BytesIO(self._raw_cover))
-			if force:
-				return img.resize(size, PIL.Image.LANCZOS)
-			else:
-				return img.resize(
-						imglib.resize(
-							img.size[0],
-							img.size[1],
-							width=size[0],
-							height=size[1]
-					), PIL.Image.LANCZOS
-				)
-		else:
-			return MusicTrack.get_front_cover_image(self, size, force)
-
-
-class MusicFile(RawCoverContainMusicTrack):
+class MusicFile(MusicTrack):
 	def __init__(self, filename):
 
 		self._isChapter = False
@@ -114,7 +87,7 @@ class MusicFile(RawCoverContainMusicTrack):
 		self._filename = os.path.realpath(filename)
 		self._duration = float(f['format']['duration'])
 		audio = False
-		video = False
+		video = None
 		for stream in f['streams']:
 			if (stream['codec_type'] == "audio") & (not audio):
 				audio = stream
@@ -124,7 +97,7 @@ class MusicFile(RawCoverContainMusicTrack):
 				and "comment" in stream['tags'] and \
 				stream['tags']['comment'] == "Cover (front)":
 					video = stream
-		if video:
+		if video is not None:
 			self._cover_track_num = video["index"]
 		self._codec = audio["codec_name"]
 		self._cdesk = audio["codec_long_name"]
@@ -157,6 +130,7 @@ class MusicFile(RawCoverContainMusicTrack):
 			tags[param.lower()] = rawtags[param]
 
 		self._taglist = TagsList(tags, filename)
+
 		self._embeded_cover = bool(video)
 		if ('tags' in audio) and ('artist' in tags) and ('album' in tags):
 			self._cover=front_cover_image_picker(
@@ -241,19 +215,16 @@ class MusicFile(RawCoverContainMusicTrack):
 			self._r128_album_gain = \
 				REPLAY_GAIN_LEVEL - float(tags['replaygain_album_gain'].split(' ')[0])
 
-	# TODO: move to TagsList
 	def print_metadata(self):
 		print(self._filename)
 		if self._bitrate:
 			print(self._f+" "+self._codec+" "+str(self._bitrate)+"k "+self._chandesk)
 		else:
 			print(self._f+" "+self._codec+" "+str(self._fbitrate)+"k "+self._chandesk)
-		for param in self._tag_param:
-			if param in self._tags:
-				print(param+": "+self._tags[param])
+		self._taglist.print_metadata()
 
 
-class CUEindex(RawCoverContainMusicTrack):
+class CUEindex(MusicTrack):
 	def __init__(self, album, album_artist, genre, date, directory, current_track, duration):
 		self._isChapter = False
 		self._iTunSMPB = False
@@ -374,7 +345,7 @@ def CUEindexer(CUEfile):
 	return index
 
 
-auext= {'wav', 'mp3', 'm4a', 'flac', 'ogg', 'opus', 'ape', 'tak', 'tta', 'wv', 'mka'}
+auext= {'.wav', '.mp3', '.m4a', '.flac', '.ogg', '.opus', '.ape', '.tak', '.tta', '.wv', '.mka'}
 
 
 def sortSongsInAlbum(song:MusicTrack):
@@ -387,19 +358,40 @@ def sortSongsInAlbum(song:MusicTrack):
 		return 0
 
 
-def indexer(dir):
-	if platform.system()=="Windows":
-		separator = '\\'
-	else:
-		separator='/'
+def sort_songlist(songlist: list) -> list:
+	grouped_songlist = dict()
 
-	filelist=filesystem.files(dir)
-	aufile=0
+	for song in songlist:
+		tags = song.get_tags_list()
+		key = (tags.album_artist(), tags.album())
+		try:
+			grouped_songlist[key].append(song)
+		except KeyError:
+			grouped_songlist[key] = list()
+			grouped_songlist[key].append(song)
+	for key in grouped_songlist.keys():
+		grouped_songlist[key].sort(key=sortSongsInAlbum)
+	keysort = list(grouped_songlist.keys())
+	keysort.sort()
+	songlist_result = list()
+	for key in keysort:
+		songlist_result.extend(grouped_songlist[key])
+	return songlist_result
+
+
+def indexer(dir):
+	songlist = fs_musicfiles_scanner(pathlib.Path(dir))
+	songlist = sort_songlist(songlist)
+	return songlist
+
+
+def non_recursive_indexer(root):
+	filelist = filesystem.files_p(root)
 	songlist=[]
 	try:
 		for file in filelist:
-			if os.path.splitext(os.path.basename(file))[1].lower()[1:]=='cue':
-				index=CUEindexer(file)
+			if pathlib.Path(file).suffix.lower() == 'cue':
+				index = CUEindexer(file)
 				songlist += index
 		if bool(songlist):
 			return songlist
@@ -408,45 +400,16 @@ def indexer(dir):
 	except CUEDecodeError as e:
 		print('file', e.file, 'can\'t decode as Unicode charset')
 	for file in filelist:
-		if (os.path.splitext(os.path.basename(file))[1]).lower()[1:] in auext:
-			aufile=MusicFile(file)
-			if aufile.getChapter():
-				for i in range(aufile.getChapter()):
-					songlist.append(aufile.getChapter(i))
-			else:
-				songlist.append(aufile)
-	songlist.sort(key=sortSongsInAlbum)
-	listdir=filesystem.directories(Path(dir))
-	for directory in listdir:
-		songlist+=indexer(str(directory))
+		if pathlib.Path(file).suffix.lower() in auext:
+			songlist.append(MusicFile(file))
 	return songlist
 
 
-def non_recursive_indexer(dir):
-	filelist=filesystem.files(str(dir))
-	aufile=0
-	songlist=[]
-	try:
-		for file in filelist:
-			if os.path.splitext(file)[1].lower()[1:]=='cue':
-				index=CUEindexer(os.path.join(str(dir), file))
-				songlist+=index
-		if bool(songlist):
-			return songlist
-	except CUEparserError as e:
-		print('Error at line:\n{} {}'.format(e.line, e.message))
-	except CUEDecodeError as e:
-		print('file', e.file, 'can\'t decode as Unicode charset')
-	for file in filelist:
-		if (os.path.splitext(file)[1]).lower()[1:] in auext:
-			aufile=MusicFile(os.path.join(str(dir), file))
-			# TODO: to be removed
-			#if aufile.getChapter():
-			#	for i in range(aufile.getChapter()):
-			#		songlist.append(aufile.getChapter(i))
-			#else:
-			songlist.append(aufile)
-	songlist.sort(key=sortSongsInAlbum)
+def fs_musicfiles_scanner(root:pathlib.Path)->list:
+	songlist = non_recursive_indexer(root)
+	listdir = filesystem.directories(root)
+	for directory in listdir:
+		songlist += indexer(str(directory))
 	return songlist
 
 
@@ -459,6 +422,7 @@ def folder_indexer(dir, progressbar):
 		songlist += non_recursive_indexer(directory)
 		progressbar.step()
 		progressbar.update_idletasks()
+	songlist = sort_songlist(songlist)
 	return songlist
 
 
