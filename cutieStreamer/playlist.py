@@ -12,12 +12,13 @@ import zlib
 from platform import system
 import enum
 import gui
+import pathlib
 
 import r128gain
 from PIL import Image
 
 from audiolib.enums import GainModeEnum
-from audiolib.tagIndexer import MusicFile, CUEindexer, DeserializeMusicTrack, m3u_indexer
+from audiolib.tagIndexer import builders, DeserializeMusicTrack, m3u_indexer
 from . import player, playlist_file_format
 
 logger = logging.getLogger(__name__)
@@ -48,16 +49,15 @@ class Playlist:
 		if type(files[0]) is str:
 			for file in files:
 				if os.path.splitext(file)[1] == '.cue':
-					self.tags += CUEindexer(file)
+					self.tags += builders.MusicTrackBuilder.cue_sheet_indexer(file)
 				elif os.path.splitext(file)[1] == '.m3u':
 					self.tags += m3u_indexer(file)
 				elif os.path.splitext(file)[1] == '.m3u8':
 					self.tags += m3u_indexer(file, unicode=True)
 				else:
-					file_index = MusicFile(file)
-					if file_index.getChapter():
-						for i in range(file_index.getChapter()):
-							self.tags.append(file_index.getChapter(i))
+					file_index = builders.MusicTrackBuilder.track_file_builder(pathlib.Path(file))
+					if type(file_index) == list:
+						self.tags.extend(file_index)
 					else:
 						self.tags.append(file_index)
 				if progressbar is not None:
@@ -173,12 +173,11 @@ class Playlist:
 		if type(files[0]) is str:
 			for file in files:
 				if file[-3:] == 'cue':
-					self.tags += CUEindexer(file)
+					self.tags += builders.MusicTrackBuilder.cue_sheet_indexer(file)
 				else:
-					file_index = MusicFile(file)
-					if file_index.getChapter():
-						for i in range(file_index.getChapter()):
-							self.tags.append(file_index.getChapter(i))
+					file_index = builders.MusicTrackBuilder.track_file_builder(pathlib.Path(file))
+					if type(file_index) == list:
+						self.tags.extend(file_index)
 					else:
 						self.tags.append(file_index)
 				if progressbar is not None:
@@ -210,7 +209,7 @@ class Playlist:
 				buf_len=buf_len
 			)
 		has_offset_and_duration = start_position > 0 & (duration is not None)
-		has_offset = start_position > 0 or self.tags[item].isChapter()
+		has_offset = start_position > 0
 		self._my_player.open_wave_stream(
 			self.tags[item].filename(),
 			self.tags[item].container(),

@@ -20,9 +20,9 @@ class MusicTrack:
 	def __init__(self, *, codec=None, bitrate=None, channels=None,
 					filename=None, start=None,
 					duration=None, cover=None, sample_rate=None, cdesk=None,
-					chandesk=None, isChapter=False, format_name=None,
+					chandesk=None, format_name=None,
 					raw_cover:bytes=None, cover_track_num=None, #**tags): DEPRECATED
-				 	tags:TagsList
+				 	tags:TagsList, track_gain=None, album_gain=None
 				 ):
 		self._sample_rate = sample_rate
 		self._start = start
@@ -32,25 +32,17 @@ class MusicTrack:
 		self._bitrate = bitrate
 		self._channels = channels
 		self._chandesk = chandesk
-		self._iTunSMPB = False
 		self._filename = filename
 		self._f = format_name
 		self._embeded_cover = True if raw_cover is not None else False
 		self._raw_cover = raw_cover
 		self._chapters = []
 		self._cover_track_num = cover_track_num
-		#
-		# TODO: redirect from
-		#self._tags.update(tags) !NOW DEPRECATED!
-		# to:
 		self._taglist = tags
-		#
 		self._cover = cover
-		self._isChapter = isChapter
-		self._r128_track_gain = None
-		self._r128_album_gain = None
+		self._r128_track_gain = track_gain
+		self._r128_album_gain = album_gain
 
-	# TODO: redirect tag queries to TagList object
 	def get_tags_list(self):
 		return self._taglist
 
@@ -72,9 +64,6 @@ class MusicTrack:
 	def duration(self):
 		return self._duration
 
-	def iTunSMPB(self):
-		return self._iTunSMPB
-
 	def cover(self):
 		if self._cover:
 			return self._cover
@@ -87,18 +76,8 @@ class MusicTrack:
 	def sample_rate(self):
 		return self._sample_rate
 
-	# TODO: to be replaced by builders
-	# def getChapter(self, id=None):
-	# 	if id is None:
-	# 		return len(self._chapters)
-	# 	else:
-	# 		return self._chapters[id]
-
 	def filename(self):
 		return self._filename
-
-	def isChapter(self):
-		return self._isChapter
 
 	def container(self):
 		return self._f
@@ -123,7 +102,7 @@ class MusicTrack:
 		return {'tags': self._tags, 'start': self._start, 'duration': self._duration,
 				'codec': self._codec, 'cdesk': self._cdesk, 'bitrate': self._bitrate,
 				'channels': self._channels, 'chandesk': self._chandesk,
-				'iTunSMPB': self._iTunSMPB, 'filename': filename,
+				'filename': filename,
 				'cover': cover, 'isChapter': self._isChapter,
 				'embeded cover': self._embeded_cover, 'sample rate': self._sample_rate,
 				'container': self._f, 'cover track index': self._cover_track_num,
@@ -237,3 +216,8 @@ class MusicTrack:
 			GainModeEnum.REPLAY_GAIN_ALBUM: self.replay_gain_album(),
 			GainModeEnum.REPLAY_GAIN_TRACK: self.replay_gain_track()
 		}
+
+	def print_metadata(self):
+		print(self._filename)
+		print(self._f+" "+self._codec+" "+str(self._bitrate)+"k "+self._chandesk)
+		self._taglist.print_metadata()
