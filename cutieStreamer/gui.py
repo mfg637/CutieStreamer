@@ -224,7 +224,7 @@ class GUI:
         if _playlist is not None and \
                 (type(_playlist) is playlist.Playlist or type(_playlist) is playlist.DeserialisedPlaylist):
             self._playlist_box.playlist_initiation(
-                _playlist.tags, self.select_item, self.open_album_dialogue, async_playlist_load
+                _playlist.tracks, self.select_item, self.open_album_dialogue, async_playlist_load
             )
         self._playlist_box.grid(row=3, column=0)
 
@@ -326,13 +326,13 @@ class GUI:
                 self._next_btn.enable()
             else:
                 self._next_btn.disable()
-            tag = self._playlist.tags[Position['track']]
+            tag = self._playlist.tracks[Position['track']]
             self._timeline.update_track_position(Position, tag)
             self._playlist_box.activate(Position['track'])
             self._inf_labels.update_track(tag)
-            self._codec_label['text'] = self._playlist.tags[Position['track']].codec().upper()
+            self._codec_label['text'] = self._playlist.tracks[Position['track']].codec().upper()
             self._bitrade_label['text'] = str(
-                int(self._playlist.tags[Position['track']].bitrate())) + 'kbps'
+                int(self._playlist.tracks[Position['track']].bitrate())) + 'kbps'
             self._playstate_label['text'] = "{} {}".format(
                 self._playlist.playback_mode.name.lower(),
                 gui.strings.PLAYBACK
@@ -386,7 +386,7 @@ class GUI:
                 self._playlist.change_gain_mode(self.gain_mode)
                 self.__unlock_playback_controls()
                 self._playlist_box.playlist_initiation(
-                    self._playlist.tags, self.select_item, self.open_album_dialogue
+                    self._playlist.tracks, self.select_item, self.open_album_dialogue
                 )
             except customExceptions.audiolib__tagIndexer.CUEparserError as e:
                 messagebox.showerror(
@@ -418,7 +418,7 @@ class GUI:
             except custom_exceptions.invalidFilename as e:
                 self._invalid_filename_exception_handler(e)
             else:
-                self._playlist_box.append(self._playlist.tags, self.select_item, self.open_album_dialogue)
+                self._playlist_box.append(self._playlist.tracks, self.select_item, self.open_album_dialogue)
                 if self._playlist.state():
                     self._playing_update()
         elif self._playlist is not None and self._playlist.is_playing():
@@ -445,7 +445,7 @@ class GUI:
                     gui.strings.ERROR_AT_LINE_NEWLINE + e.line + e.message
                 )
             else:
-                self._playlist_box.append(self._playlist.tags, self.select_item, self.open_album_dialogue)
+                self._playlist_box.append(self._playlist.tracks, self.select_item, self.open_album_dialogue)
                 if self._playlist.state():
                     self._playing_update()
             self._playpause_btn.setPlay()
@@ -484,7 +484,7 @@ class GUI:
             else:
                 self.__unlock_playback_controls()
                 self._playlist_box.playlist_initiation(
-                    self._playlist.tags, self.select_item, self.open_album_dialogue
+                    self._playlist.tracks, self.select_item, self.open_album_dialogue
                 )
                 self._playpause_btn.setPlay()
                 self._playstate_label['text'] = gui.strings.PLAYBACK_STOPPED
@@ -634,7 +634,7 @@ class GUI:
         self._playlist.change_gain_mode(self.gain_mode)
         self.__unlock_playback_controls()
         self._playlist_box.playlist_initiation(
-            self._playlist.tags,
+            self._playlist.tracks,
             self.select_item,
             self.open_album_dialogue,
             cover_thumbnails=cover_thumbnails
@@ -669,7 +669,7 @@ class GUI:
                 self._playlist.change_gain_mode(self.gain_mode)
                 self.__unlock_playback_controls()
                 self._playlist_box.playlist_initiation(
-                    self._playlist.tags, self.select_item, self.open_album_dialogue
+                    self._playlist.tracks, self.select_item, self.open_album_dialogue
                 )
                 self._playpause_btn.setPlay()
                 self._playstate_label['text'] = gui.strings.PLAYBACK_STOPPED
@@ -685,7 +685,7 @@ class GUI:
             Position = self._playlist.get_current_position()
             self._trackPropertiesFrame = gui.dialogues.TrackProperties(
                 self._root,
-                self._playlist.tags[Position['track']],
+                self._playlist.tracks[Position['track']],
                 self
             )
         else:
@@ -739,7 +739,7 @@ class GUI:
 
     def playlist_update(self):
         self._playlist_box.playlist_initiation(
-            self._playlist.tags, self.select_item, self.open_album_dialogue, True
+            self._playlist.tracks, self.select_item, self.open_album_dialogue, True
         )
 
     def convert_album(self, tracks):

@@ -57,7 +57,6 @@ class DeserializeMusicTrack(MusicTrack):
 				self._cover = cover
 		elif type(data['cover']) is str:
 			self._cover=''
-		self._isChapter = data['isChapter']
 		self._sample_rate = data['sample rate']
 		self._f = data['container']
 		if "cover track index" in data:

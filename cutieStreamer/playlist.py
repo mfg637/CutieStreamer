@@ -18,7 +18,7 @@ import r128gain
 from PIL import Image
 
 from audiolib.enums import GainModeEnum
-from audiolib.tagIndexer import builders, DeserializeMusicTrack, m3u_indexer
+from audiolib.tagIndexer import builders, DeserializeMusicTrack, m3u_indexer, MusicTrack
 from . import player, playlist_file_format
 
 logger = logging.getLogger(__name__)
@@ -45,26 +45,26 @@ class Playlist:
 	"""Class describes playlist and is a wrapper for player.
 		Only one instance can be displayed in gui."""
 	def __init__(self, files, progressbar=None):
-		self.tags = []
+		self.tracks = []
 		if type(files[0]) is str:
 			for file in files:
 				if os.path.splitext(file)[1] == '.cue':
-					self.tags += builders.MusicTrackBuilder.cue_sheet_indexer(file)
+					self.tracks += builders.MusicTrackBuilder.cue_sheet_indexer(file)
 				elif os.path.splitext(file)[1] == '.m3u':
-					self.tags += m3u_indexer(file)
+					self.tracks += m3u_indexer(file)
 				elif os.path.splitext(file)[1] == '.m3u8':
-					self.tags += m3u_indexer(file, unicode=True)
+					self.tracks += m3u_indexer(file, unicode=True)
 				else:
 					file_index = builders.MusicTrackBuilder.track_file_builder(pathlib.Path(file))
 					if type(file_index) == list:
-						self.tags.extend(file_index)
+						self.tracks.extend(file_index)
 					else:
-						self.tags.append(file_index)
+						self.tracks.append(file_index)
 				if progressbar is not None:
 					progressbar.step()
 					progressbar.update_idletasks()
 		else:
-			self.tags = files
+			self.tracks = files
 		self._my_player = None
 		self._start_offset = 0
 		self._timestamp = []
@@ -73,7 +73,7 @@ class Playlist:
 		self.playback_mode = PlaybackModeEnum.GAPLESS
 		self._gain_mode = GainModeEnum.NONE
 		self._gui = None
-		self._playlist_len = len(self.tags)
+		self._playlist_len = len(self.tracks)
 
 	def set_gui(self, link):
 		"""Bind GUI class for this playlist"""
@@ -118,17 +118,17 @@ class Playlist:
 			self._my_player = None
 
 	def _count_timestamps(self):
-		self._timestamp = [self.tags[self._track_number].duration() - self._start_offset]
+		self._timestamp = [self.tracks[self._track_number].duration() - self._start_offset]
 		if self.playback_mode == PlaybackModeEnum.GAPLESS:
-			for i in range(self._track_number + 1, len(self.tags)):
-				self._timestamp.append(self._timestamp[-1] + self.tags[i].duration())
+			for i in range(self._track_number + 1, len(self.tracks)):
+				self._timestamp.append(self._timestamp[-1] + self.tracks[i].duration())
 		elif self.playback_mode == PlaybackModeEnum.CROSSFADE:
 			self._timestamp[0] -= self.fading_duration/2
-			for i in range(self._track_number + 1, len(self.tags)):
-				if i < (len(self.tags)-1):
-					self._timestamp.append(self._timestamp[-1] + self.tags[i].duration()-self.fading_duration)
+			for i in range(self._track_number + 1, len(self.tracks)):
+				if i < (len(self.tracks) - 1):
+					self._timestamp.append(self._timestamp[-1] + self.tracks[i].duration() - self.fading_duration)
 				else:
-					self._timestamp.append(self._timestamp[-1] + self.tags[i].duration()-self.fading_duration/2)
+					self._timestamp.append(self._timestamp[-1] + self.tracks[i].duration() - self.fading_duration / 2)
 
 	def get_current_position(self):
 		""" Get current track number and playing time.
@@ -173,49 +173,49 @@ class Playlist:
 		if type(files[0]) is str:
 			for file in files:
 				if file[-3:] == 'cue':
-					self.tags += builders.MusicTrackBuilder.cue_sheet_indexer(file)
+					self.tracks += builders.MusicTrackBuilder.cue_sheet_indexer(file)
 				else:
 					file_index = builders.MusicTrackBuilder.track_file_builder(pathlib.Path(file))
 					if type(file_index) == list:
-						self.tags.extend(file_index)
+						self.tracks.extend(file_index)
 					else:
-						self.tags.append(file_index)
+						self.tracks.append(file_index)
 				if progressbar is not None:
 					progressbar.step()
 					progressbar.update_idletasks()
 		else:
-			self.tags += files
-		self._playlist_len = len(self.tags)
+			self.tracks += files
+		self._playlist_len = len(self.tracks)
 		self._count_timestamps()
 
 	def __request_optimizer(self, item: int, offset: int = 0):
 		start_position = 0
-		if self.tags[item].start() > 0:
-			start_position = self.tags[item].start()
+		if self.tracks[item].start() > 0:
+			start_position = self.tracks[item].start()
 			duration = None
 		else:
-			duration = self.tags[item].duration()
+			duration = self.tracks[item].duration()
 		start_position += offset
 		if self.playback_mode == PlaybackModeEnum.CROSSFADE:
 			self._my_player = player.CrossfadePlayer(
 				self,
-				samplerate=self.tags[item].sample_rate(),
+				samplerate=self.tracks[item].sample_rate(),
 				fading_duration=self.fading_duration
 			)
 		else:
 			self._my_player = player.GaplessPlayer(
 				self,
-				samplerate=self.tags[item].sample_rate(),
+				samplerate=self.tracks[item].sample_rate(),
 				buf_len=buf_len
 			)
 		has_offset_and_duration = start_position > 0 & (duration is not None)
 		has_offset = start_position > 0
 		self._my_player.open_wave_stream(
-			self.tags[item].filename(),
-			self.tags[item].container(),
-			self.tags[item].codec(),
+			self.tracks[item].filename(),
+			self.tracks[item].container(),
+			self.tracks[item].codec(),
 			gain_mode=self._gain_mode,
-			gains=self.tags[item].get_gain_levels(),
+			gains=self.tracks[item].get_gain_levels(),
 			offset=start_position if has_offset else None,
 			duration=duration if has_offset_and_duration or not has_offset else None
 		)
@@ -264,24 +264,24 @@ class Playlist:
 
 	def next_audio_file(self):
 		current_track = self.get_current_position()['track'] + 1
-		if len(self.tags) <= current_track:
+		if len(self.tracks) <= current_track:
 			raise EndOfPlaylistException()
-		if self.tags[current_track].start() > 0:
-			start_position = self.tags[current_track].start()
+		if self.tracks[current_track].start() > 0:
+			start_position = self.tracks[current_track].start()
 		else:
 			start_position = 0
-		if self.tags[current_track].iTunSMPB():
-			duration = self.tags[current_track].duration()
+		if self.tracks[current_track].iTunSMPB():
+			duration = self.tracks[current_track].duration()
 		else:
 			duration = None
 		self._my_player.open_wave_stream(
-			self.tags[current_track].filename(),
+			self.tracks[current_track].filename(),
 			offset=start_position if start_position > 0 else None,
 			duration=duration,
 			gain_mode=self._gain_mode,
-			gains=self.tags[current_track].get_gain_levels(),
-			acodec=self.tags[current_track].codec(),
-			format=self.tags[current_track].container()
+			gains=self.tracks[current_track].get_gain_levels(),
+			acodec=self.tracks[current_track].codec(),
+			format=self.tracks[current_track].container()
 		)
 
 	def gui_show_wait_banner(self):
@@ -293,7 +293,7 @@ class Playlist:
 	def serialize(self, filename=None, dirname=None):
 		if filename is not None:
 			dirname=os.path.dirname(filename)
-		serialisableData=[i.serialize(dirname) for i in self.tags]
+		serialisableData=[i.serialize(dirname) for i in self.tracks]
 		if filename is not None:
 			fp=open(filename, 'w')
 			json.dump(serialisableData, fp)
@@ -307,27 +307,29 @@ class Playlist:
 		if filename is not None:
 			fp=open(filename, 'w')
 			fp.write('#EXTM3U\n')
-			for tag in self.tags:
-				fp.write("#EXTINF:{},{} - {}\n".format(int(tag.duration()), tag.artist(), tag.title()))
-				fp.write(os.path.relpath(tag.filename(), start=dirname))
+			for track in self.tracks:
+				tags = track.get_tags_list()
+				fp.write("#EXTINF:{},{} - {}\n".format(int(track.duration()), tags.artist(), tags.title()))
+				fp.write(os.path.relpath(track.filename(), start=dirname))
 				fp.write('\n')
 			fp.close()
 
 	def getAlbum(self, album_artist, album):
-		new_tags=[]
-		for tag in self.tags:
-			if tag.album_artist() == album_artist and tag.album() == album:
-				new_tags.append(tag)
-		return new_tags
+		new_tracks = []
+		for track in self.tracks:
+			tags = track.get_tags_list()
+			if tags.album_artist() == album_artist and tags.album() == album:
+				new_tracks.append(track)
+		return new_tracks
 
 	def setAlbumArtistTags(self, tracks, new_album_artist, new_album, disc=None):
 		start_pos = 0
 		for tag in tracks:
-			start_pos = self.tags.index(tag, start_pos)
-			self.tags[start_pos].setAlbumArtist(new_album_artist)
-			self.tags[start_pos].setAlbum(new_album)
+			start_pos = self.tracks.index(tag, start_pos)
+			self.tracks[start_pos].setAlbumArtist(new_album_artist)
+			self.tracks[start_pos].setAlbum(new_album)
 			if disc is not None:
-				self.tags[start_pos].set_disc(disc)
+				self.tracks[start_pos].set_disc(disc)
 
 	def get_playlist_len(self):
 		return self._playlist_len
@@ -339,27 +341,29 @@ class Playlist:
 			logger.debug("playlist lenght %s", self._playlist_len)
 		albums = dict()
 		ungrouped_tracks = list()
-		for tag in self.tags:
-			if tag.album() is not None:
-				album_hash = hash(tag.album()+tag.album_artist())
-				if album_hash not in albums:
-					albums[album_hash] = list()
-				albums[album_hash].append(tag)
+		for track in self.tracks:
+			tags = track.get_tags_list()
+			if tags.album() is not None:
+				album_key = (tags.album(), tags.album_artist())
+				if album_key not in albums:
+					albums[album_key] = list()
+				albums[album_key].append(track)
 			else:
-				ungrouped_tracks.append(tag.filename())
+				ungrouped_tracks.append(track.filename())
 		logger.debug("albums: %s", albums)
 		logger.debug("tracks: %s", ungrouped_tracks)
 		for album in albums:
 			file_list = list()
 			for track in albums[album]:
-				fname = track.filename()
+				fname = str(pathlib.Path(track.filename()).absolute())
 				if fname not in file_list:
 					file_list.append(fname)
 			logger.debug("input_files: %s", file_list)
 			scan_results = r128gain.scan(file_list, album_gain=True)
 			logger.debug("scan results: %s", scan_results)
 			for track in albums[album]:
-				track.set_r128_track_gain(scan_results[track.filename()][0])
+				fname = str(pathlib.Path(track.filename()).absolute())
+				track.set_r128_track_gain(scan_results[fname][0])
 				track.set_r128_album_gain(scan_results[0][0])
 			if callback is not None:
 				value = len(albums[album]) + callback.get_value()
@@ -386,7 +390,7 @@ class DeserialisedPlaylist(Playlist):
 			fp.close()
 		elif data is not None:
 			serialisableData = json.loads(data)
-		self.tags=[DeserializeMusicTrack(i, dirname) for i in serialisableData]
+		self.tracks=[DeserializeMusicTrack(i, dirname) for i in serialisableData]
 		self._my_player = None
 		self._start_offset = 0
 		self._timestamp = []
@@ -395,7 +399,7 @@ class DeserialisedPlaylist(Playlist):
 		self.playback_mode = PlaybackModeEnum.GAPLESS
 		self._gui = None
 		self._gain_mode = GainModeEnum.NONE
-		self._playlist_len = len(self.tags)
+		self._playlist_len = len(self.tracks)
 
 def serizlize_playlist_file(filename, playlist:Playlist, gui):
 	outfile = playlist_file_format.PlaylistWriter(filename)

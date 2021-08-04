@@ -99,11 +99,12 @@ class MusicTrack:
 				cover = re.sub('\\\\', '/', cover)
 		else:
 			cover = ''
-		return {'tags': self._tags, 'start': self._start, 'duration': self._duration,
+		tags = self.get_tags_list()
+		return {'tags': tags.get_tags(), 'start': self._start, 'duration': self._duration,
 				'codec': self._codec, 'cdesk': self._cdesk, 'bitrate': self._bitrate,
 				'channels': self._channels, 'chandesk': self._chandesk,
 				'filename': filename,
-				'cover': cover, 'isChapter': self._isChapter,
+				'cover': cover,
 				'embeded cover': self._embeded_cover, 'sample rate': self._sample_rate,
 				'container': self._f, 'cover track index': self._cover_track_num,
 				'r128_track_gain': self._r128_track_gain,
