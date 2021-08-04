@@ -63,6 +63,8 @@ class DeserializeMusicTrack(MusicTrack):
 			self._cover_track_num = data["cover track index"]
 		else:
 			self._cover_track_num = None
+		self._is_custom_duration = data["custom_duration"]
+		self._raw_cover = None
 
 
 auext= {'.wav', '.mp3', '.m4a', '.flac', '.ogg', '.opus', '.ape', '.tak', '.tta', '.wv', '.mka'}

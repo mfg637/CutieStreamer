@@ -54,14 +54,14 @@ class MusicTrackBuilder:
 			_chandesk = audio["channel_layout"]
 		else:
 			_chandesk = None
-		_iTunSMPB = False
+		is_custom_duration = False
 
 		tags = {}
 
 		if 'tags' in f['format']:
 			rawtags = f['format']['tags']
 			if 'iTunSMPB' in f['format']['tags']:
-				_iTunSMPB = True
+				is_custom_duration = True
 				iTunSMPB = f['format']['tags']['iTunSMPB'].split(' ')
 				_duration = int(iTunSMPB[4], 16)/int(audio['sample_rate'])
 		elif 'tags' in audio:
@@ -143,7 +143,8 @@ class MusicTrackBuilder:
 						cover_track_num=_cover_track_num,
 						tags=TagsList(chapter_tags, filename),
 						track_gain=_r128_track_gain,
-						album_gain=_r128_album_gain
+						album_gain=_r128_album_gain,
+						is_custom_duration=is_custom_duration
 					)
 				)
 			return _chapters

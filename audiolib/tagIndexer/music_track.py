@@ -20,10 +20,11 @@ class MusicTrack:
 	def __init__(self, *, codec=None, bitrate=None, channels=None,
 					filename=None, start=None,
 					duration=None, cover=None, sample_rate=None, cdesk=None,
-					chandesk=None, format_name=None,
+					chandesk=None, format_name=None, is_custom_duration=False,
 					raw_cover:bytes=None, cover_track_num=None, #**tags): DEPRECATED
 				 	tags:TagsList, track_gain=None, album_gain=None
 				 ):
+		self._is_custom_duration = is_custom_duration
 		self._sample_rate = sample_rate
 		self._start = start
 		self._duration = duration
@@ -42,6 +43,9 @@ class MusicTrack:
 		self._cover = cover
 		self._r128_track_gain = track_gain
 		self._r128_album_gain = album_gain
+
+	def is_custom_duration(self):
+		return self._is_custom_duration
 
 	def get_tags_list(self):
 		return self._taglist
@@ -104,7 +108,7 @@ class MusicTrack:
 				'codec': self._codec, 'cdesk': self._cdesk, 'bitrate': self._bitrate,
 				'channels': self._channels, 'chandesk': self._chandesk,
 				'filename': filename,
-				'cover': cover,
+				'cover': cover, "custom_duration": self._is_custom_duration,
 				'embeded cover': self._embeded_cover, 'sample rate': self._sample_rate,
 				'container': self._f, 'cover track index': self._cover_track_num,
 				'r128_track_gain': self._r128_track_gain,

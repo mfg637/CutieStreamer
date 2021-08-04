@@ -270,7 +270,7 @@ class Playlist:
 			start_position = self.tracks[current_track].start()
 		else:
 			start_position = 0
-		if self.tracks[current_track].iTunSMPB():
+		if self.tracks[current_track].is_custom_duration():
 			duration = self.tracks[current_track].duration()
 		else:
 			duration = None
